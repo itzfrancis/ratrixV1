@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ratrix Logistics | Dynamic Matrix</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* =========================================
+           COLOR PALETTE & THEME VARIABLES
+           ========================================= */
+        :root {
+            /* LIGHT MODE */
+            --brand-primary: #00C2A0; 
+            --brand-hover: #00A88D;   
+            --bg-main: #F8F9FA;      
+            --bg-container: #FFFFFF;  
+            --bg-input: #FFFFFF;      
+            --bg-secondary: #F8F9FA;  
+            --text-main: #212529;     
+            --text-muted: #6C757D;    
+            --border-color: #E9ECEF;  
+            
+            /* States */
+            --state-success-bg: #D1E7DD; 
+            --state-danger-bg: #F8D7DA;  
+            --state-danger-text: #DC3545; 
+        } 
+
+        /* DARK MODE */
+        [data-theme="dark"] {
+            --brand-primary: #00C2A0; 
+            --brand-hover: #00A88D;
+            --bg-main: #121212;       
+            --bg-container: #1E1E1E;  
+            --bg-input: #2C2C2C;      
+            --bg-secondary: #2C2C2C;  
+            --text-main: #FFFFFF;     
+            --text-muted: #ADB5BD;    
+            --border-color: #343a40;  
+
+            --state-success-bg: #1b4d3e; 
+            --state-danger-bg: #4c1f24;  
+            --state-danger-text: #ea868f; 
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-main);
+            margin: 0;
+            padding: 40px 20px;
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            background: var(--bg-container);
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+            display: grid;
+            grid-template-rows: auto 1fr;
+            border: 1px solid var(--border-color);
+        }
+
+        /* HEADER */
+        .header {
+            background: var(--bg-container);
+            color: var(--text-main);
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .header h1 { margin: 0; font-size: 1.25rem; font-weight: 700; color: var(--brand-primary); }
+
+        /* THEME TOGGLE */
+        .theme-toggle-btn {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            padding: 8px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .theme-toggle-btn:hover {
+            background: var(--bg-secondary);
+            color: var(--text-main);
+            border-color: var(--text-muted);
+        }
+        .theme-icon { width: 20px; height: 20px; fill: currentColor; }
+        
+        [data-theme="light"] .icon-moon { display: block; }
+        [data-theme="light"] .icon-sun { display: none; }
+        [data-theme="dark"] .icon-sun { display: block; }
+        [data-theme="dark"] .icon-moon { display: none; }
+
+        /* GRID */
+        .content-grid {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+        }
+
+        /* LEFT PANEL */
+        .input-panel {
+            padding: 30px;
+            background: var(--bg-container);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: var(--text-muted);
+        }
+        .input-group select, .input-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-input);
+            color: var(--text-main);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            transition: border-color 0.2s;
+        }
+        .input-group select:focus, .input-group input:focus {
+            outline: none;
+            border-color: var(--brand-primary);
+        }
+
+        /* Dimensions Grid */
+        .dim-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 8px;
+        }
+
+        /* RIGHT PANEL */
+        .info-panel {
+            padding: 30px;
+            background: var(--bg-secondary);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; 
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+            max-width: 100%;
+            margin-bottom: 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-container);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .rate-table {
+            width: max-content;
+            min-width: 100%;
+            border-collapse: separate; 
+            border-spacing: 0;
+            font-size: 0.85rem;
+            border: none;
+        }
+
+        .rate-table th {
+            background: var(--bg-container);
+            color: var(--text-muted);
+            padding: 12px 10px;
+            text-align: center;
+            font-weight: 600;
+            white-space: nowrap;
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        /* Sticky Columns */
+        .rate-table th:nth-child(1), .rate-table td:nth-child(1) { position: sticky; left: 0; z-index: 10; }
+        .rate-table th:nth-child(2), .rate-table td:nth-child(2) { position: sticky; left: 100px; z-index: 10; }
+        .rate-table th:nth-child(1) { z-index: 30; }
+        .rate-table th:nth-child(2) { z-index: 30; }
+
+        .rate-table td {
+            padding: 8px 10px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-main);
+            vertical-align: middle;
+            text-align: center;
+            background: var(--bg-container);
+        }
+        .rate-table tr:last-child td { border-bottom: none; }
+        .active-route-row td { background-color: var(--state-success-bg) !important; font-weight: 700; }
+
+        /* Inputs in Table */
+        .editable-input {
+            width: 80px; 
+            padding: 6px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            color: var(--text-main);
+            font-weight: 600;
+            background: var(--bg-input);
+            text-align: center;
+        }
+        .editable-input.text-input { width: 100px; text-align: left; }
+        .active-route-row .editable-input { background: var(--bg-container); border-color: var(--brand-primary); }
+        .header-input {
+            width: 60px;
+            padding: 4px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-input);
+            color: var(--brand-primary);
+            font-weight: 700;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 0.85rem;
+        }
+
+        /* Buttons */
+        .btn-delete {
+            background: var(--state-danger-bg);
+            color: var(--state-danger-text);
+            border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; font-size: 0.75rem; font-weight: 600;
+        }
+        .action-bar { display: flex; gap: 10px; margin-bottom: 15px; }
+        .btn-add {
+            background: transparent; border: 1px dashed var(--brand-primary); color: var(--brand-primary);
+            padding: 10px; flex: 1; border-radius: 6px; cursor: pointer; font-weight: 600; text-align: center;
+        }
+        .btn-add:hover { background: var(--brand-primary); color: white; }
+        
+        .btn-export {
+            flex: 1; background: var(--bg-container); border: 1px solid var(--border-color); color: var(--text-muted);
+            padding: 8px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: 600;
+        }
+        .btn-export:hover { border-color: var(--text-main); color: var(--text-main); background: var(--bg-secondary); }
+        
+        .btn-import {
+            display: block; width: 100%; text-align: center; background: var(--bg-secondary); color: var(--text-muted);
+            border: 1px solid var(--border-color); padding: 10px; border-radius: 6px; cursor: pointer;
+            font-size: 0.85rem; font-weight: 600;
+        }
+        .btn-import:hover { background: var(--border-color); color: var(--text-main); }
+
+        /* NEW BUTTON STYLES FOR PROFILE MANAGER */
+        .icon-btn {
+            width: 36px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-container);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            cursor: pointer;
+            color: var(--text-main);
+            transition: all 0.2s;
+        }
+        .icon-btn:hover {
+            background: var(--brand-primary);
+            color: white;
+            border-color: var(--brand-primary);
+        }
+        .icon-btn-danger {
+            width: 36px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-container);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            cursor: pointer;
+            color: var(--state-danger-text);
+            transition: all 0.2s;
+        }
+        .icon-btn-danger:hover {
+            background: var(--state-danger-bg);
+            border-color: var(--state-danger-text);
+        }
+
+        /* RESULTS */
+        .result-box {
+            margin-top: auto;
+            background: var(--bg-container);
+            border: 1px solid var(--border-color);
+            border-left: 5px solid var(--brand-primary);
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .result-label { font-size: 0.85rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+        .result-value { font-size: 2rem; color: var(--text-main); font-weight: 700; display: block; margin: 5px 0; }
+        .formula-text { font-size: 0.8rem; color: var(--text-muted); font-style: italic; }
+
+        /* Stat Grid for CBM/Vol */
+        .stat-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px dashed var(--border-color);
+        }
+        .stat-item { display: flex; flex-direction: column; }
+        .stat-val { font-weight: 700; color: var(--text-main); font-size: 0.95rem; }
+        .stat-title { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; }
+
+        #calculateBtn {
+            width: 100%; padding: 14px; background: var(--brand-primary); color: white;
+            border: none; border-radius: 6px; font-size: 1rem; font-weight: 600; cursor: pointer;
+            margin-top: 10px; transition: background 0.2s;
+        }
+        #calculateBtn:hover { background: var(--brand-hover); }
+
+        @media (max-width: 768px) {
+            .content-grid { grid-template-columns: 1fr; }
+            .input-panel { border-right: none; border-bottom: 1px solid var(--border-color); }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <div>
+            <h1>RATRIX</h1>
+            <div style="font-size: 0.9rem; opacity: 0.8; color: var(--text-muted);">V2.0 | Multi-Table</div>
+        </div>
+        
+        <button id="theme-toggle" class="theme-toggle-btn" aria-label="Toggle Dark Mode">
+            <svg class="theme-icon icon-sun" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.166a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.06 1.061l1.591-1.59zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.834 18.894a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 10-1.061 1.06l1.59 1.591zM12 18a.75.75 0 01.75.75V21a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 18zM7.758 17.303a.75.75 0 00-1.061-1.06l-1.591 1.59a.75.75 0 001.06 1.061l1.591-1.59zM6 12a.75.75 0 01-.75.75H3a.75.75 0 010-1.5h2.25A.75.75 0 016 12zM6.697 7.757a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 00-1.061 1.06l1.59 1.591z"/></svg>
+            <svg class="theme-icon icon-moon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.528 1.718a.75.75 0 01.162.819A8.97 8.97 0 009 6a9 9 0 009 9 8.97 8.97 0 003.463-.69.75.75 0 01.981.98 10.503 10.503 0 01-9.694 6.46c-5.799 0-10.5-4.701-10.5-10.5 0-4.368 2.667-8.112 6.46-9.694a.75.75 0 01.818.162z"/></svg>
+        </button>
+    </div>
+
+    <div class="content-grid">
+        <div class="input-panel">
+            <div class="input-group">
+                <label>Pricing Model</label>
+                <select id="pricingModel">
+                    <option value="fixed">Fixed Bracket (Standard)</option>
+                    <option value="flat">Flat Bracket Pricing</option>
+                    <option value="minFixed">Minimum Fixed Bracket</option>
+                    <option value="cumulative">Cumulative Bracket Pricing</option>
+                    <option value="minCumulative">Minimum Cumulative Bracket</option>
+                    <option value="minExcess">Minimum Excess Bracket</option>
+                    <option value="excess">Excess Bracket Pricing</option>
+                </select>
+            </div>
+
+            <div class="input-group" style="padding-top: 10px; border-top: 1px dashed var(--border-color);">
+                <label>Charge Code</label>
+                <div style="display: flex; gap: 8px;">
+                    <select id="tableProfileSelect" style="flex: 1; font-weight: 600;"></select>
+                    
+                    <button id="btnNewProfile" class="icon-btn" title="New Table">
+                        <span style="font-size: 1.2rem; line-height: 1;">+</span>
+                    </button>
+                    <button id="btnRenameProfile" class="icon-btn" title="Rename Table">✎</button>
+                    <button id="btnDeleteProfile" class="icon-btn-danger" title="Delete Table">🗑</button>
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label>Route</label>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <select id="origin"></select>
+                    <select id="destination"></select>
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label>Dimensions (L x W x H) cm</label>
+                <div class="dim-grid">
+                    <input type="number" id="dimL" placeholder="L" min="0">
+                    <input type="number" id="dimW" placeholder="W" min="0">
+                    <input type="number" id="dimH" placeholder="H" min="0">
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label>Volumetric Divisor</label>
+                <input type="number" id="volDivisor" value="6000" placeholder="e.g. 6000">
+            </div>
+
+            <div class="input-group">
+                <label>Actual Weight (kg)</label>
+                <input type="number" id="weightInput" step="0.01" placeholder="e.g. 85.00">
+            </div>
+
+            <div class="input-group">
+                <label>Charge Basis</label>
+                <select id="chargeBasis">
+                    <option value="actual">Use Actual Weight</option>
+                    <option value="volumetric">Use Volumetric Weight</option>
+                </select>
+            </div>
+
+            <button id="calculateBtn">Calculate Freight</button>
+        </div>
+
+        <div class="info-panel">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <label class="result-label">Matrix Rate Table</label>
+            </div>
+            
+            <div class="table-wrapper">
+                <table class="rate-table">
+                    <thead>
+                        <tr id="tableHeaderRow"></tr>
+                    </thead>
+                    <tbody id="rateTableBody"></tbody>
+                </table>
+            </div>
+
+            <div class="action-bar">
+                <button id="addRowBtn" class="btn-add">+ Add Route</button>
+                <button id="addColBtn" class="btn-add" style="border-style: solid; background: var(--bg-secondary); color: var(--text-muted); border-color: var(--border-color);">+ Add Weight Column</button>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <button id="btnExportCsv" class="btn-export">Download CSV</button>
+                <button id="btnExportJson" class="btn-export">Download JSON</button>
+            </div>
+
+            <div style="margin-bottom: 20px; border-top: 1px dashed var(--border-color); padding-top: 15px;">
+                <input type="file" id="jsonUpload" accept=".json" style="display: none;" />
+                <label for="jsonUpload" class="btn-import">📂 Import JSON Configuration</label>
+            </div>
+
+            <div class="result-box">
+                <div class="stat-grid">
+                    <div class="stat-item">
+                        <span class="stat-title">Actual Wt.</span>
+                        <span class="stat-val" id="dispActual">0 kg</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-title">Volumetric Wt.</span>
+                        <span class="stat-val" id="dispVol">0 kg</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-title">CBM</span>
+                        <span class="stat-val" id="dispCbm">0.00</span>
+                    </div>
+                </div>
+
+                <span class="result-label">Total Freight Charge</span>
+                <span class="result-value" id="resultPrice">Php 0.00</span>
+                <span class="formula-text" id="formulaDesc">Enter details to calculate</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
