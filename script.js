@@ -13,16 +13,23 @@ const MODEL_KEYS = [
     'minCumulative', 'minExcess', 'excess'
 ];
 
+// Service Modes
+const SERVICE_MODES = [
+    "DOOR TO DOOR",
+    "PORT TO PORT",
+    "DOOR TO PORT",
+    "PORT TO DOOR"
+];
+
 /* DATA STRUCTURE:
    DATA_STORE = {
        "fixed": {
            activeId: "timestamp_id_1",
            profiles: {
-               "timestamp_id_1": { name: "Default Table", rows: [...] },
-               "timestamp_id_2": { name: "VIP Rates", rows: [...] }
+               "timestamp_id_1": { name: "Default Table", rows: [...] }
            }
        },
-       "flat": { ... }
+       ...
    }
 */
 let DATA_STORE = {};
@@ -37,6 +44,7 @@ function createEmptyRow() {
     return {
         origin: "",
         dest: "",
+        serviceMode: "DOOR TO DOOR", // Default
         rates: new Array(BRACKET_LIMITS.length).fill(null) 
     };
 }
@@ -214,9 +222,7 @@ const strategies = {
         return rates[index];
     },
     minFixed: (w, rates) => {
-        // For MinFixed, we check against the raw limit first for the minimum
         if (w <= BRACKET_LIMITS[0]) return isValid(rates[0]) ? rates[0] : null;
-        
         const index = getBracketIndex(w);
         if (index === -1 || !isValid(rates[index])) return null;
         return w * rates[index];
@@ -276,9 +282,8 @@ const strategies = {
 
 function isValid(val) { return val !== null && val !== "" && !isNaN(val); }
 
-// UPDATED FUNCTION: Rounds down weight for lookup
 function getBracketIndex(w) {
-    const effectiveWeight = Math.floor(w); // 5.1 -> 5, 5.9 -> 5
+    const effectiveWeight = Math.floor(w);
     for (let i = 0; i < BRACKET_LIMITS.length; i++) {
         if (effectiveWeight <= BRACKET_LIMITS[i]) return i;
     }
@@ -294,17 +299,17 @@ const elTableBody = document.getElementById('rateTableBody');
 const elResult = document.getElementById('resultPrice');
 const elDesc = document.getElementById('formulaDesc');
 const elWeight = document.getElementById('weightInput');
+
 const elOrigin = document.getElementById('origin');
 const elDest = document.getElementById('destination');
+const elServiceMode = document.getElementById('serviceModeInput');
 
-// DIMENSION ELEMENTS
 const elDimL = document.getElementById('dimL');
 const elDimW = document.getElementById('dimW');
 const elDimH = document.getElementById('dimH');
 const elVolDivisor = document.getElementById('volDivisor');
 const elChargeBasis = document.getElementById('chargeBasis');
 
-// STAT DISPLAY ELEMENTS
 const elDispActual = document.getElementById('dispActual');
 const elDispVol = document.getElementById('dispVol');
 const elDispCbm = document.getElementById('dispCbm');
@@ -314,10 +319,11 @@ function renderTableStructure() {
     const profile = getActiveProfile();
     const activeRows = profile.rows;
 
+    // Build Header
     let headerHtml = `
         <th style="width: 100px;">Origin</th>
         <th style="width: 100px;">Destination</th>
-    `;
+        <th style="width: 140px;">Service Mode</th> `;
 
     BRACKET_LIMITS.forEach((limit, index) => {
         const prevLimit = index === 0 ? 0 : BRACKET_LIMITS[index - 1];
@@ -333,10 +339,18 @@ function renderTableStructure() {
     headerHtml += `<th style="width: 60px;">Action</th>`;
     elTableHeader.innerHTML = headerHtml;
 
+    // Build Body
     let bodyHtml = '';
     activeRows.forEach((row, rowIndex) => {
         let ratesHtml = '';
         while(row.rates.length < BRACKET_LIMITS.length) row.rates.push(null);
+
+        const currentService = row.serviceMode || SERVICE_MODES[0];
+
+        // Build Service Dropdown for this specific row
+        const serviceOptions = SERVICE_MODES.map(mode => 
+            `<option value="${mode}" ${mode === currentService ? 'selected' : ''}>${mode}</option>`
+        ).join('');
 
         row.rates.forEach((rate, colIndex) => {
             if(colIndex < BRACKET_LIMITS.length) {
@@ -364,6 +378,12 @@ function renderTableStructure() {
                        value="${row.dest}" 
                        placeholder="Dest"
                        onchange="handleEditRoute('dest', ${rowIndex}, this.value)">
+            </td>
+            <td>
+                <select class="editable-input" style="width: 100%; text-align: left;"
+                        onchange="handleEditServiceMode(${rowIndex}, this.value)">
+                    ${serviceOptions}
+                </select>
             </td>
             ${ratesHtml}
             <td>
@@ -458,6 +478,13 @@ window.handleEditRoute = function(field, rowIndex, value) {
     calculate();
 };
 
+window.handleEditServiceMode = function(rowIndex, value) {
+    const profile = getActiveProfile();
+    profile.rows[rowIndex].serviceMode = value;
+    saveToLocal();
+    calculate();
+};
+
 window.deleteRow = function(index) {
     const profile = getActiveProfile();
     if (profile.rows.length <= 1) {
@@ -478,6 +505,7 @@ function calculate() {
     const actualWeight = parseFloat(elWeight.value) || 0;
     const origin = elOrigin.value;
     const dest = elDest.value;
+    const serviceMode = elServiceMode.value; 
     const model = elModel.value; 
 
     const L = parseFloat(elDimL.value) || 0;
@@ -504,11 +532,17 @@ function calculate() {
     }
 
     const profile = getActiveProfile();
-    const routeIndex = profile.rows.findIndex(r => r.origin === origin && r.dest === dest);
+    
+    // Find row matching Origin, Dest AND ServiceMode
+    const routeIndex = profile.rows.findIndex(r => 
+        r.origin === origin && 
+        r.dest === dest && 
+        (r.serviceMode || "DOOR TO DOOR") === serviceMode
+    );
     
     if (routeIndex === -1) {
         elResult.textContent = "Route Not Found";
-        elDesc.textContent = `No configured rate for this route in table: ${profile.name}`;
+        elDesc.textContent = `No match for ${origin} -> ${dest} via ${serviceMode}`;
         highlightRow(-1);
         return;
     }
@@ -539,7 +573,7 @@ function calculate() {
         }
         
         const basisLabel = chargeBasis === 'volumetric' ? 'Vol. Wt.' : 'Act. Wt.';
-        elDesc.textContent = `${model} | ${basisLabel} (${chargeableWeight}kg) | [Bracket: ${bracketLabel}]`;
+        elDesc.textContent = `${model} | ${basisLabel} | ${serviceMode}`;
     }
 }
 
@@ -553,6 +587,7 @@ elModel.addEventListener('change', () => {
 elWeight.addEventListener('input', calculate);
 elOrigin.addEventListener('change', calculate);
 elDest.addEventListener('change', calculate);
+elServiceMode.addEventListener('change', calculate);
 
 elDimL.addEventListener('input', calculate);
 elDimW.addEventListener('input', calculate);
@@ -563,7 +598,7 @@ elChargeBasis.addEventListener('change', calculate);
 document.getElementById('calculateBtn').addEventListener('click', calculate);
 
 /* =========================================
-   6. EXPORT / IMPORT
+   6. EXPORT / IMPORT (XLSX & JSON)
    ========================================= */
 
 function downloadFile(content, fileName, mimeType) {
@@ -576,64 +611,216 @@ function downloadFile(content, fileName, mimeType) {
     document.body.removeChild(a);
 }
 
-document.getElementById('btnExportCsv').addEventListener('click', () => {
+// --- EXPORT TO EXCEL WITH DROPDOWN ---
+document.getElementById('btnExportCsv').addEventListener('click', async () => {
     const model = elModel.value;
     const profile = getActiveProfile();
     
-    let headers = "Origin,Destination";
+    // Create new Workbook
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet(profile.name || 'Sheet1');
+
+    // Headers
+    const headers = ["Origin", "Destination", "ServiceMode"];
     BRACKET_LIMITS.forEach((lim, i) => {
         const prev = i === 0 ? 1 : BRACKET_LIMITS[i-1] + 1;
-        headers += `,Rate_${prev}_${lim}`;
+        headers.push(`Rate_${prev}_${lim}`);
     });
-    headers += "\n";
-    let csv = headers;
+
+    worksheet.addRow(headers);
+    worksheet.getRow(1).font = { bold: true };
+
+    // Rows
     profile.rows.forEach(row => {
-        const safeRates = row.rates.map(r => r === null ? "" : r);
-        csv += `${row.origin},${row.dest},${safeRates.join(',')}\n`;
+        const rowData = [
+            row.origin, 
+            row.dest, 
+            row.serviceMode || "DOOR TO DOOR"
+        ];
+        row.rates.forEach(r => {
+            rowData.push(r === null ? "" : r);
+        });
+        worksheet.addRow(rowData);
     });
+
+    // ADD DROPDOWN TO SERVICE MODE (Column 3)
+    const serviceModeColIndex = 3; 
+    const rowCount = worksheet.rowCount;
+    // Comma-separated string for list validation
+    const dropdownList = `"${SERVICE_MODES.join(',')}"`;
+
+    for (let i = 2; i <= rowCount; i++) {
+        const cell = worksheet.getCell(i, serviceModeColIndex);
+        cell.dataValidation = {
+            type: 'list',
+            allowBlank: false,
+            formulae: [dropdownList],
+            showErrorMessage: true,
+            errorTitle: 'Invalid Service Mode',
+            error: 'Select a valid Service Mode from the list.'
+        };
+    }
+
+    // Write & Download
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     
     const safeName = profile.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-    downloadFile(csv, `${model}_${safeName}.csv`, "text/csv");
+    const fileName = `${model}_${safeName}.xlsx`;
+
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 });
 
-/* --- NEW CSV IMPORT LOGIC START --- */
+// --- IMPORT (CSV OR XLSX) ---
 document.getElementById('csvUpload').addEventListener('change', (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        const text = e.target.result;
-        processCSVImport(text);
-        event.target.value = ''; // Reset input
-    };
-    reader.readAsText(file);
+    // Check extension
+    if (file.name.endsWith('.xlsx')) {
+        // Handle Excel Import
+        const reader = new FileReader();
+        reader.onload = async function(e) {
+            const buffer = e.target.result;
+            const workbook = new ExcelJS.Workbook();
+            await workbook.xlsx.load(buffer);
+            const worksheet = workbook.getWorksheet(1); // Read first sheet
+            processXLSXImport(worksheet);
+            event.target.value = ''; // Reset
+        };
+        reader.readAsArrayBuffer(file);
+    } else {
+        // Handle CSV Import (Legacy)
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const text = e.target.result;
+            processCSVImport(text);
+            event.target.value = '';
+        };
+        reader.readAsText(file);
+    }
 });
 
+function processXLSXImport(worksheet) {
+    if (!worksheet || worksheet.rowCount < 2) {
+        alert("Invalid Excel file.");
+        return;
+    }
+
+    // 1. Parse Headers (Row 1)
+    const headerRow = worksheet.getRow(1);
+    const headers = [];
+    headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        headers[colNumber - 1] = cell.value ? cell.value.toString() : ""; 
+    });
+
+    const hasServiceMode = headers[2].trim().toLowerCase() === 'servicemode';
+    const rateStartIndex = hasServiceMode ? 3 : 2;
+
+    const newLimits = [];
+    const rateColIndices = []; // 1-based index for ExcelJS getCell
+
+    for (let i = rateStartIndex; i < headers.length; i++) {
+        const colName = headers[i].trim();
+        const parts = colName.split('_');
+        const limitVal = parseFloat(parts[parts.length - 1]);
+        if (!isNaN(limitVal)) {
+            newLimits.push(limitVal);
+            rateColIndices.push(i + 1); // ExcelJS uses 1-based columns
+        }
+    }
+
+    if (newLimits.length === 0) {
+        alert("No rate columns found (Format: Rate_X_Y).");
+        return;
+    }
+
+    // 2. Check Limits
+    const limitsChanged = JSON.stringify(BRACKET_LIMITS) !== JSON.stringify(newLimits);
+    if (limitsChanged) {
+        const confirmMsg = "Warning: The weight columns in the Excel file are different from the current setup.\n\n" +
+                           "Importing this will update the weight brackets for ALL tables in the app.\n\n" +
+                           "Proceed?";
+        if (!confirm(confirmMsg)) return;
+        BRACKET_LIMITS = newLimits;
+        // Update all profiles to match new width
+        MODEL_KEYS.forEach(key => {
+            if (DATA_STORE[key] && DATA_STORE[key].profiles) {
+                Object.values(DATA_STORE[key].profiles).forEach(p => {
+                    p.rows.forEach(r => {
+                        while (r.rates.length < newLimits.length) r.rates.push(null);
+                        if (r.rates.length > newLimits.length) r.rates = r.rates.slice(0, newLimits.length);
+                    });
+                });
+            }
+        });
+    }
+
+    // 3. Parse Data Rows
+    const profile = getActiveProfile();
+    const newRows = [];
+
+    worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return; // Skip header
+
+        const rowOrigin = row.getCell(1).value ? row.getCell(1).value.toString().trim() : "";
+        const rowDest = row.getCell(2).value ? row.getCell(2).value.toString().trim() : "";
+        
+        if (!rowOrigin && !rowDest) return;
+
+        let rowService = "DOOR TO DOOR";
+        if (hasServiceMode) {
+            const rawService = row.getCell(3).value ? row.getCell(3).value.toString().trim().toUpperCase() : "";
+            if(SERVICE_MODES.includes(rawService)) {
+                rowService = rawService;
+            }
+        }
+
+        const rowRates = [];
+        rateColIndices.forEach(colIdx => {
+            const cellVal = row.getCell(colIdx).value;
+            // Handle Excel richness (if cell is object) or simple value
+            let val = (cellVal && typeof cellVal === 'object' && cellVal.result !== undefined) ? cellVal.result : cellVal;
+            val = parseFloat(val);
+            rowRates.push(isNaN(val) ? null : val);
+        });
+
+        newRows.push({
+            origin: rowOrigin,
+            dest: rowDest,
+            serviceMode: rowService,
+            rates: rowRates
+        });
+    });
+
+    profile.rows = newRows;
+    saveToLocal();
+    renderTableStructure();
+    calculate();
+    alert("Excel Imported Successfully! Rates and Service Modes updated.");
+}
+
 function processCSVImport(csvText) {
-    // 1. Normalize line breaks and split into rows
     const lines = csvText.trim().split(/\r?\n/);
     if (lines.length < 2) {
         alert("Invalid CSV: Not enough data.");
         return;
     }
 
-    // 2. Parse Headers to determine Weight Limits
     const headers = lines[0].split(',');
-    
-    // Check if first two are Origin/Dest
-    if (headers[0].trim().toLowerCase() !== 'origin' || headers[1].trim().toLowerCase() !== 'destination') {
-        alert("Invalid CSV Format. First two columns must be 'Origin' and 'Destination'.");
-        return;
-    }
+    const hasServiceMode = headers[2].trim().toLowerCase() === 'servicemode';
+    const rateStartIndex = hasServiceMode ? 3 : 2;
 
     const newLimits = [];
     const rateColIndices = []; 
 
-    // Loop through headers starting at index 2
-    for (let i = 2; i < headers.length; i++) {
+    for (let i = rateStartIndex; i < headers.length; i++) {
         const colName = headers[i].trim();
-        // Regex extract the last number from string (Rate_1_50 -> 50)
         const parts = colName.split('_');
         const limitVal = parseFloat(parts[parts.length - 1]);
 
@@ -648,18 +835,13 @@ function processCSVImport(csvText) {
         return;
     }
 
-    // 3. Confirm with user if limits change (Global change)
     const limitsChanged = JSON.stringify(BRACKET_LIMITS) !== JSON.stringify(newLimits);
     if (limitsChanged) {
         const confirmMsg = "Warning: The weight columns in the CSV are different from the current setup.\n\n" +
                            "Importing this will update the weight brackets for ALL tables in the app.\n\n" +
                            "Proceed?";
         if (!confirm(confirmMsg)) return;
-        
-        // Update Global Limits
         BRACKET_LIMITS = newLimits;
-        
-        // Resize all profiles in DATA_STORE
         MODEL_KEYS.forEach(key => {
             if (DATA_STORE[key] && DATA_STORE[key].profiles) {
                 Object.values(DATA_STORE[key].profiles).forEach(p => {
@@ -672,7 +854,6 @@ function processCSVImport(csvText) {
         });
     }
 
-    // 4. Parse Rows and Update Active Profile
     const profile = getActiveProfile();
     const newRows = [];
 
@@ -682,6 +863,14 @@ function processCSVImport(csvText) {
 
         const rowOrigin = cells[0].trim();
         const rowDest = cells[1].trim();
+        
+        let rowService = "DOOR TO DOOR";
+        if (hasServiceMode) {
+            const rawService = cells[2].trim().toUpperCase();
+            if(SERVICE_MODES.includes(rawService)) {
+                rowService = rawService;
+            }
+        }
         
         if (!rowOrigin && !rowDest) continue;
 
@@ -695,6 +884,7 @@ function processCSVImport(csvText) {
         newRows.push({
             origin: rowOrigin,
             dest: rowDest,
+            serviceMode: rowService,
             rates: rowRates
         });
     }
@@ -703,9 +893,8 @@ function processCSVImport(csvText) {
     saveToLocal();
     renderTableStructure();
     calculate();
-    alert("CSV Imported Successfully! Rates and Columns updated.");
+    alert("CSV Imported Successfully!");
 }
-/* --- NEW CSV IMPORT LOGIC END --- */
 
 document.getElementById('btnExportJson').addEventListener('click', () => {
     const exportObj = {

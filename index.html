@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ratrix Logistics | Dynamic Matrix</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+
     <style>
         /* =========================================
            COLOR PALETTE & THEME VARIABLES
@@ -60,7 +63,7 @@
 
         .container {
             width: 100%;
-            max-width: 1200px;
+            max-width: 1250px; /* Increased slightly for new column */
             background: var(--bg-container);
             border-radius: 12px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
@@ -345,7 +348,7 @@
     <div class="header">
         <div>
             <h1>RATRIX</h1>
-            <div style="font-size: 0.9rem; opacity: 0.8; color: var(--text-muted);">V1.0 | Multi-Table</div>
+            <div style="font-size: 0.9rem; opacity: 0.8; color: var(--text-muted);">V1.2 | Excel Support + Dropdowns</div>
         </div>
         
         <button id="theme-toggle" class="theme-toggle-btn" aria-label="Toggle Dark Mode">
@@ -388,6 +391,16 @@
                     <select id="origin"></select>
                     <select id="destination"></select>
                 </div>
+            </div>
+
+            <div class="input-group">
+                <label>Service Mode</label>
+                <select id="serviceModeInput">
+                    <option value="DOOR TO DOOR">DOOR TO DOOR</option>
+                    <option value="PORT TO PORT">PORT TO PORT</option>
+                    <option value="DOOR TO PORT">DOOR TO PORT</option>
+                    <option value="PORT TO DOOR">PORT TO DOOR</option>
+                </select>
             </div>
 
             <div class="input-group">
@@ -440,15 +453,15 @@
             </div>
 
             <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                <button id="btnExportCsv" class="btn-export">Download CSV</button>
-                <button id="btnExportJson" class="btn-export">Download JSON</button>
+                <button id="btnExportCsv" class="btn-export">Download Excel (XLSX)</button>
+                <button id="btnExportJson" class="btn-export">Download JSON (Backup)</button>
             </div>
 
             <div style="margin-bottom: 20px; border-top: 1px dashed var(--border-color); padding-top: 15px; display:flex; gap:10px;">
                 <div style="flex:1;">
-                    <input type="file" id="csvUpload" accept=".csv" style="display: none;" />
+                    <input type="file" id="csvUpload" accept=".csv, .xlsx" style="display: none;" />
                     <label for="csvUpload" class="btn-import" style="background:var(--bg-container); border:1px solid var(--brand-primary); color:var(--brand-primary);">
-                        Start Upload CSV
+                        Start Upload (CSV / XLSX)
                     </label>
                 </div>
                 <div style="flex:1;">
