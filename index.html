@@ -13,7 +13,7 @@
             /* LIGHT MODE */
             --brand-primary: #00C2A0; 
             --brand-hover: #00A88D;   
-            --bg-main: #F8F9FA;      
+            --bg-main: #F8F9FA;       
             --bg-container: #FFFFFF;  
             --bg-input: #FFFFFF;      
             --bg-secondary: #F8F9FA;  
@@ -444,9 +444,19 @@
                 <button id="btnExportJson" class="btn-export">Download JSON</button>
             </div>
 
-            <div style="margin-bottom: 20px; border-top: 1px dashed var(--border-color); padding-top: 15px;">
-                <input type="file" id="jsonUpload" accept=".json" style="display: none;" />
-                <label for="jsonUpload" class="btn-import">📂 Import JSON Configuration</label>
+            <div style="margin-bottom: 20px; border-top: 1px dashed var(--border-color); padding-top: 15px; display:flex; gap:10px;">
+                <div style="flex:1;">
+                    <input type="file" id="csvUpload" accept=".csv" style="display: none;" />
+                    <label for="csvUpload" class="btn-import" style="background:var(--bg-container); border:1px solid var(--brand-primary); color:var(--brand-primary);">
+                        Start Upload CSV
+                    </label>
+                </div>
+                <div style="flex:1;">
+                    <input type="file" id="jsonUpload" accept=".json" style="display: none;" />
+                    <label for="jsonUpload" class="btn-import">
+                        📂 Restore Backup
+                    </label>
+                </div>
             </div>
 
             <div class="result-box">

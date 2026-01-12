@@ -596,6 +596,117 @@ document.getElementById('btnExportCsv').addEventListener('click', () => {
     downloadFile(csv, `${model}_${safeName}.csv`, "text/csv");
 });
 
+/* --- NEW CSV IMPORT LOGIC START --- */
+document.getElementById('csvUpload').addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const text = e.target.result;
+        processCSVImport(text);
+        event.target.value = ''; // Reset input
+    };
+    reader.readAsText(file);
+});
+
+function processCSVImport(csvText) {
+    // 1. Normalize line breaks and split into rows
+    const lines = csvText.trim().split(/\r?\n/);
+    if (lines.length < 2) {
+        alert("Invalid CSV: Not enough data.");
+        return;
+    }
+
+    // 2. Parse Headers to determine Weight Limits
+    const headers = lines[0].split(',');
+    
+    // Check if first two are Origin/Dest
+    if (headers[0].trim().toLowerCase() !== 'origin' || headers[1].trim().toLowerCase() !== 'destination') {
+        alert("Invalid CSV Format. First two columns must be 'Origin' and 'Destination'.");
+        return;
+    }
+
+    const newLimits = [];
+    const rateColIndices = []; 
+
+    // Loop through headers starting at index 2
+    for (let i = 2; i < headers.length; i++) {
+        const colName = headers[i].trim();
+        // Regex extract the last number from string (Rate_1_50 -> 50)
+        const parts = colName.split('_');
+        const limitVal = parseFloat(parts[parts.length - 1]);
+
+        if (!isNaN(limitVal)) {
+            newLimits.push(limitVal);
+            rateColIndices.push(i);
+        }
+    }
+
+    if (newLimits.length === 0) {
+        alert("No rate columns found (Format: Rate_X_Y).");
+        return;
+    }
+
+    // 3. Confirm with user if limits change (Global change)
+    const limitsChanged = JSON.stringify(BRACKET_LIMITS) !== JSON.stringify(newLimits);
+    if (limitsChanged) {
+        const confirmMsg = "Warning: The weight columns in the CSV are different from the current setup.\n\n" +
+                           "Importing this will update the weight brackets for ALL tables in the app.\n\n" +
+                           "Proceed?";
+        if (!confirm(confirmMsg)) return;
+        
+        // Update Global Limits
+        BRACKET_LIMITS = newLimits;
+        
+        // Resize all profiles in DATA_STORE
+        MODEL_KEYS.forEach(key => {
+            if (DATA_STORE[key] && DATA_STORE[key].profiles) {
+                Object.values(DATA_STORE[key].profiles).forEach(p => {
+                    p.rows.forEach(r => {
+                        while (r.rates.length < newLimits.length) r.rates.push(null);
+                        if (r.rates.length > newLimits.length) r.rates = r.rates.slice(0, newLimits.length);
+                    });
+                });
+            }
+        });
+    }
+
+    // 4. Parse Rows and Update Active Profile
+    const profile = getActiveProfile();
+    const newRows = [];
+
+    for (let i = 1; i < lines.length; i++) {
+        const cells = lines[i].split(',');
+        if (cells.length < 2) continue;
+
+        const rowOrigin = cells[0].trim();
+        const rowDest = cells[1].trim();
+        
+        if (!rowOrigin && !rowDest) continue;
+
+        const rowRates = [];
+        rateColIndices.forEach(colIndex => {
+            const valStr = cells[colIndex] ? cells[colIndex].trim() : "";
+            const val = parseFloat(valStr);
+            rowRates.push(isNaN(val) ? null : val);
+        });
+
+        newRows.push({
+            origin: rowOrigin,
+            dest: rowDest,
+            rates: rowRates
+        });
+    }
+
+    profile.rows = newRows;
+    saveToLocal();
+    renderTableStructure();
+    calculate();
+    alert("CSV Imported Successfully! Rates and Columns updated.");
+}
+/* --- NEW CSV IMPORT LOGIC END --- */
+
 document.getElementById('btnExportJson').addEventListener('click', () => {
     const exportObj = {
         app_version: "ratrix_v2_profiles",
