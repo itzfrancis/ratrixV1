@@ -2,18 +2,16 @@
    1. DATA CONFIGURATION & STORAGE
    ========================================= */
 
-const STORAGE_KEY = 'ratrix_data_v2_profiles';
+const STORAGE_KEY = 'ratrix_data_v3_clients'; // New key for Version 3
+const OLD_STORAGE_KEY = 'ratrix_data_v2_profiles'; // Used for migration
 
-// EDITABLE BRACKETS: Shared columns (Weight Limits) across the entire app
-let BRACKET_LIMITS = [50, 100, 150, 500];
+const DEFAULT_LIMITS = [50, 100, 150, 500];
 
-// Available Pricing Models
 const MODEL_KEYS = [
     'fixed', 'flat', 'minFixed', 'cumulative', 
     'minCumulative', 'minExcess', 'excess'
 ];
 
-// Service Modes
 const SERVICE_MODES = [
     "DOOR TO DOOR",
     "PORT TO PORT",
@@ -21,110 +19,274 @@ const SERVICE_MODES = [
     "PORT TO DOOR"
 ];
 
-/* DATA STRUCTURE:
-   DATA_STORE = {
-       "fixed": {
-           activeId: "timestamp_id_1",
-           profiles: {
-               "timestamp_id_1": { name: "Default Table", rows: [...] }
+/* NEW DATA STRUCTURE (V3):
+   ROOT = {
+       activeClientId: "c_123",
+       clients: {
+           "c_123": {
+               id: "c_123",
+               name: "Client A",
+               description: "Logistics",
+               data_store: { ... old data store structure ... } 
            }
-       },
-       ...
+       }
    }
 */
-let DATA_STORE = {};
+
+let GLOBAL_STORE = {
+    activeClientId: null,
+    clients: {}
+};
 
 // --- HELPERS ---
 
-function generateId() {
-    return 'p_' + Date.now().toString(36) + Math.random().toString(36).substr(2);
+function generateId(prefix = 'id_') {
+    return prefix + Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
 
-function createEmptyRow() {
+function createEmptyRow(limitCount) {
     return {
         origin: "",
         dest: "",
-        serviceMode: "DOOR TO DOOR", // Default
-        rates: new Array(BRACKET_LIMITS.length).fill(null) 
+        serviceMode: "DOOR TO DOOR", 
+        rates: new Array(limitCount).fill(null) 
     };
 }
 
-function createDefaultProfile() {
-    return {
-        name: "Standard Table",
-        rows: [createEmptyRow()]
-    };
+// Create a completely fresh data store for a new client
+function createFreshClientStore() {
+    let store = {};
+    MODEL_KEYS.forEach(key => {
+        const pid = generateId('p_');
+        // Initial limits for new profiles
+        const initialLimits = [...DEFAULT_LIMITS];
+        
+        store[key] = {
+            activeId: pid,
+            profiles: {}
+        };
+        
+        store[key].profiles[pid] = {
+            name: "Standard Table",
+            limits: initialLimits,
+            rows: [createEmptyRow(initialLimits.length)]
+        };
+    });
+    return store;
 }
 
 // --- PERSISTENCE ---
 
 function saveToLocal() {
-    const payload = {
-        limits: BRACKET_LIMITS,
-        store: DATA_STORE
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(GLOBAL_STORE));
 }
 
 function loadFromLocal() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
         try {
-            const saved = JSON.parse(raw);
-            if (saved.limits && saved.store) {
-                BRACKET_LIMITS = saved.limits;
-                if (saved.store['fixed'] && saved.store['fixed'].profiles) {
-                    DATA_STORE = saved.store;
-                    return true;
-                }
-            }
-        } catch (e) {
-            console.error("Storage corrupted", e);
-        }
+            GLOBAL_STORE = JSON.parse(raw);
+            return true;
+        } catch (e) { console.error("Corrupted V3 store", e); }
     }
+    
+    // --- MIGRATION FROM V2 (Legacy) ---
+    const oldRaw = localStorage.getItem(OLD_STORAGE_KEY);
+    if (oldRaw) {
+        try {
+            console.log("Migrating V2 Data to V3 Clients...");
+            const oldData = JSON.parse(oldRaw);
+            
+            // Normalize old data to ensure limits exist inside profiles
+            let migratedStore = oldData.store || oldData.data_store;
+            if(!migratedStore) return false;
+
+            const globalLimits = oldData.limits || DEFAULT_LIMITS;
+            MODEL_KEYS.forEach(key => {
+                if (migratedStore[key] && migratedStore[key].profiles) {
+                    Object.values(migratedStore[key].profiles).forEach(p => {
+                        if (!p.limits) p.limits = [...globalLimits];
+                    });
+                }
+            });
+
+            // Create Default Client with this data
+            const clientId = generateId('c_');
+            GLOBAL_STORE.clients[clientId] = {
+                id: clientId,
+                name: "Legacy Data (Migrated)",
+                description: "Imported from previous version",
+                data_store: migratedStore
+            };
+            GLOBAL_STORE.activeClientId = clientId;
+            saveToLocal();
+            // Optional: Remove old key after successful migration
+            // localStorage.removeItem(OLD_STORAGE_KEY); 
+            return true;
+        } catch(e) { console.error("Migration failed", e); }
+    }
+
     return false;
 }
 
 // --- INITIALIZATION ---
 
-function initData() {
-    if (!loadFromLocal()) {
-        MODEL_KEYS.forEach(key => {
-            const pid = generateId();
-            DATA_STORE[key] = {
-                activeId: pid,
-                profiles: {}
-            };
-            DATA_STORE[key].profiles[pid] = createDefaultProfile();
-        });
+function initApp() {
+    const loaded = loadFromLocal();
+    if (!loaded) {
+        // No data at all, create first client
+        const cid = generateId('c_');
+        GLOBAL_STORE.clients[cid] = {
+            id: cid,
+            name: "Default Client",
+            description: "",
+            data_store: createFreshClientStore()
+        };
+        GLOBAL_STORE.activeClientId = cid;
         saveToLocal();
+    }
+    renderClientList();
+    renderAppForActiveClient();
+}
+
+// --- CLIENT MANAGEMENT LOGIC ---
+
+function getActiveClient() {
+    if(!GLOBAL_STORE.activeClientId || !GLOBAL_STORE.clients[GLOBAL_STORE.activeClientId]) {
+        // Fallback if ID is bad
+        const keys = Object.keys(GLOBAL_STORE.clients);
+        if(keys.length > 0) {
+            GLOBAL_STORE.activeClientId = keys[0];
+            return GLOBAL_STORE.clients[keys[0]];
+        }
+        return null;
+    }
+    return GLOBAL_STORE.clients[GLOBAL_STORE.activeClientId];
+}
+
+/* =========================================
+   2. UI: CLIENT SIDEBAR
+   ========================================= */
+
+const elClientList = document.getElementById('clientList');
+const elClientDesc = document.getElementById('clientDescription');
+const elHeaderClientName = document.getElementById('headerClientName');
+
+function renderClientList() {
+    elClientList.innerHTML = '';
+    const activeId = GLOBAL_STORE.activeClientId;
+
+    Object.values(GLOBAL_STORE.clients).forEach(client => {
+        const div = document.createElement('div');
+        div.className = `client-item ${client.id === activeId ? 'active' : ''}`;
+        div.innerHTML = `
+            <span class="client-name">${client.name}</span>
+            <div class="client-meta">${Object.keys(client.data_store.fixed.profiles).length} tables</div>
+        `;
+        div.onclick = () => switchClient(client.id);
+        elClientList.appendChild(div);
+    });
+
+    // Update Header and Desc Box
+    const current = getActiveClient();
+    if (current) {
+        elHeaderClientName.textContent = current.name;
+        elClientDesc.value = current.description || "";
     }
 }
 
-initData();
+function switchClient(id) {
+    if (GLOBAL_STORE.activeClientId === id) return;
+    GLOBAL_STORE.activeClientId = id;
+    saveToLocal();
+    renderClientList();
+    renderAppForActiveClient(); // RE-RENDER EVERYTHING RIGHT SIDE
+}
+
+document.getElementById('btnNewClient').addEventListener('click', () => {
+    const name = prompt("Enter Client Name:");
+    if (!name) return;
+    
+    const cid = generateId('c_');
+    GLOBAL_STORE.clients[cid] = {
+        id: cid,
+        name: name,
+        description: "",
+        data_store: createFreshClientStore() // Defaults everything
+    };
+    switchClient(cid);
+});
+
+elClientDesc.addEventListener('input', (e) => {
+    const client = getActiveClient();
+    if(client) {
+        client.description = e.target.value;
+        saveToLocal();
+    }
+});
+
+document.getElementById('btnDeleteClient').addEventListener('click', () => {
+    const client = getActiveClient();
+    if(!client) return;
+    
+    // Check if it's the only one
+    if(Object.keys(GLOBAL_STORE.clients).length <= 1) {
+        alert("Cannot delete the last remaining client.");
+        return;
+    }
+
+    if(confirm(`Delete client "${client.name}" and all their rates? This cannot be undone.`)) {
+        delete GLOBAL_STORE.clients[client.id];
+        // Switch to first available
+        GLOBAL_STORE.activeClientId = Object.keys(GLOBAL_STORE.clients)[0];
+        saveToLocal();
+        renderClientList();
+        renderAppForActiveClient();
+    }
+});
+
 
 /* =========================================
-   2. PROFILE MANAGEMENT
+   3. APP LOGIC (Scoped to Active Client)
    ========================================= */
+
+// Accessor for the Data Store of the ACTIVE CLIENT
+function getActiveClientDataStore() {
+    const client = getActiveClient();
+    return client ? client.data_store : null;
+}
 
 const elTableSelect = document.getElementById('tableProfileSelect');
 const elModel = document.getElementById('pricingModel');
 
+// Renders the calculator part based on current client data
+function renderAppForActiveClient() {
+    renderProfileDropdown();
+    renderTableStructure();
+    calculate();
+}
+
+// Get the specific model data (e.g., 'fixed') for the ACTIVE client
 function getActiveModelData() {
+    const store = getActiveClientDataStore();
     const model = elModel.value;
-    if (!DATA_STORE[model]) {
-        const pid = generateId();
-        DATA_STORE[model] = { activeId: pid, profiles: {} };
-        DATA_STORE[model].profiles[pid] = createDefaultProfile();
+    if (!store[model]) {
+        // Fallback fix if model missing
+        const pid = generateId('p_');
+        const initialLimits = [...DEFAULT_LIMITS];
+        store[model] = { activeId: pid, profiles: {} };
+        store[model].profiles[pid] = { name: "Standard Table", limits: initialLimits, rows: [createEmptyRow(initialLimits.length)] };
     }
-    return DATA_STORE[model];
+    return store[model];
 }
 
 function getActiveProfile() {
     const modelData = getActiveModelData();
     const pid = modelData.activeId;
+    // Fix if activeId points to non-existent profile
     if (!modelData.profiles[pid]) {
         const firstKey = Object.keys(modelData.profiles)[0];
+        if(!firstKey) return null; // Should not happen given creation logic
         modelData.activeId = firstKey;
         return modelData.profiles[firstKey];
     }
@@ -145,9 +307,9 @@ function renderProfileDropdown() {
     });
 }
 
-// HANDLERS
+// HANDLERS (Calculator Side)
 
-document.getElementById('tableProfileSelect').addEventListener('change', (e) => {
+elTableSelect.addEventListener('change', (e) => {
     const modelData = getActiveModelData();
     modelData.activeId = e.target.value;
     saveToLocal();
@@ -156,15 +318,17 @@ document.getElementById('tableProfileSelect').addEventListener('change', (e) => 
 });
 
 document.getElementById('btnNewProfile').addEventListener('click', () => {
-    const name = prompt("Enter a name for the new table (e.g., 'Client B Rates'):");
+    const name = prompt("Enter table name (e.g. 'Promo Rates'):");
     if (!name) return;
 
     const modelData = getActiveModelData();
-    const newId = generateId();
-    
+    const newId = generateId('p_');
+    const initialLimits = [...DEFAULT_LIMITS];
+
     modelData.profiles[newId] = {
         name: name,
-        rows: [createEmptyRow()]
+        limits: initialLimits,
+        rows: [createEmptyRow(initialLimits.length)]
     };
     modelData.activeId = newId; 
     
@@ -176,7 +340,7 @@ document.getElementById('btnNewProfile').addEventListener('click', () => {
 
 document.getElementById('btnRenameProfile').addEventListener('click', () => {
     const profile = getActiveProfile();
-    const newName = prompt("Rename current table:", profile.name);
+    const newName = prompt("Rename table:", profile.name);
     if (newName && newName.trim() !== "") {
         profile.name = newName;
         saveToLocal();
@@ -194,7 +358,7 @@ document.getElementById('btnDeleteProfile').addEventListener('click', () => {
     }
     
     const profileName = modelData.profiles[modelData.activeId].name;
-    if (confirm(`Are you sure you want to delete table "${profileName}"?`)) {
+    if (confirm(`Delete table "${profileName}"?`)) {
         delete modelData.profiles[modelData.activeId];
         modelData.activeId = Object.keys(modelData.profiles)[0];
         
@@ -207,72 +371,72 @@ document.getElementById('btnDeleteProfile').addEventListener('click', () => {
 
 
 /* =========================================
-   3. CALCULATION FORMULAS
+   4. CALCULATION FORMULAS (Unchanged logic)
    ========================================= */
 
 const strategies = {
-    fixed: (w, rates) => {
-        const index = getBracketIndex(w);
+    fixed: (w, rates, limits) => {
+        const index = getBracketIndex(w, limits);
         if (index === -1 || !isValid(rates[index])) return null; 
         return w * rates[index];
     },
-    flat: (w, rates) => {
-        const index = getBracketIndex(w);
+    flat: (w, rates, limits) => {
+        const index = getBracketIndex(w, limits);
         if (index === -1 || !isValid(rates[index])) return null;
         return rates[index];
     },
-    minFixed: (w, rates) => {
-        if (w <= BRACKET_LIMITS[0]) return isValid(rates[0]) ? rates[0] : null;
-        const index = getBracketIndex(w);
+    minFixed: (w, rates, limits) => {
+        if (w <= limits[0]) return isValid(rates[0]) ? rates[0] : null;
+        const index = getBracketIndex(w, limits);
         if (index === -1 || !isValid(rates[index])) return null;
         return w * rates[index];
     },
-    cumulative: (w, rates) => {
+    cumulative: (w, rates, limits) => {
         let total = 0;
         let remaining = w;
         let prevMax = 0;
-        for (let i = 0; i < BRACKET_LIMITS.length; i++) {
+        for (let i = 0; i < limits.length; i++) {
             if (!isValid(rates[i])) return null; 
-            const capacity = BRACKET_LIMITS[i] - prevMax;
+            const capacity = limits[i] - prevMax;
             const fill = Math.min(remaining, capacity);
             if (fill > 0) {
                 total += fill * rates[i];
                 remaining -= fill;
             }
-            prevMax = BRACKET_LIMITS[i];
+            prevMax = limits[i];
             if (remaining <= 0) break;
         }
         return remaining > 0 ? null : total; 
     },
-    minCumulative: (w, rates) => {
+    minCumulative: (w, rates, limits) => {
         let total = 0;
         let remaining = w;
         let prevMax = 0;
-        for (let i = 0; i < BRACKET_LIMITS.length; i++) {
+        for (let i = 0; i < limits.length; i++) {
             if (!isValid(rates[i])) return null;
-            const capacity = BRACKET_LIMITS[i] - prevMax;
+            const capacity = limits[i] - prevMax;
             const fill = Math.min(remaining, capacity);
             if (fill > 0) {
                 if (i === 0) total += rates[0]; 
                 else total += fill * rates[i];
                 remaining -= fill;
             }
-            prevMax = BRACKET_LIMITS[i];
+            prevMax = limits[i];
             if (remaining <= 0) break;
         }
         return remaining > 0 ? null : total;
     },
-    minExcess: (w, rates) => {
+    minExcess: (w, rates, limits) => {
         if (!isValid(rates[0]) || !isValid(rates[1])) return null;
-        const limit = BRACKET_LIMITS[0]; 
+        const limit = limits[0]; 
         const baseFlat = rates[0];      
         const excessRate = rates[1];     
         if (w <= limit) return baseFlat;
         return baseFlat + ((w - limit) * excessRate);
     },
-    excess: (w, rates) => {
+    excess: (w, rates, limits) => {
         if (!isValid(rates[0]) || !isValid(rates[1])) return null;
-        const limit = BRACKET_LIMITS[0]; 
+        const limit = limits[0]; 
         const baseRate = rates[0];       
         const excessRate = rates[1];     
         if (w <= limit) return w * baseRate;
@@ -282,16 +446,16 @@ const strategies = {
 
 function isValid(val) { return val !== null && val !== "" && !isNaN(val); }
 
-function getBracketIndex(w) {
+function getBracketIndex(w, limits) {
     const effectiveWeight = Math.floor(w);
-    for (let i = 0; i < BRACKET_LIMITS.length; i++) {
-        if (effectiveWeight <= BRACKET_LIMITS[i]) return i;
+    for (let i = 0; i < limits.length; i++) {
+        if (effectiveWeight <= limits[i]) return i;
     }
     return -1;
 }
 
 /* =========================================
-   4. UI LOGIC & RENDERERS
+   5. UI RENDERING & EDITING
    ========================================= */
 
 const elTableHeader = document.getElementById('tableHeaderRow');
@@ -299,61 +463,65 @@ const elTableBody = document.getElementById('rateTableBody');
 const elResult = document.getElementById('resultPrice');
 const elDesc = document.getElementById('formulaDesc');
 const elWeight = document.getElementById('weightInput');
-
 const elOrigin = document.getElementById('origin');
 const elDest = document.getElementById('destination');
 const elServiceMode = document.getElementById('serviceModeInput');
-
 const elDimL = document.getElementById('dimL');
 const elDimW = document.getElementById('dimW');
 const elDimH = document.getElementById('dimH');
 const elVolDivisor = document.getElementById('volDivisor');
 const elChargeBasis = document.getElementById('chargeBasis');
-
 const elDispActual = document.getElementById('dispActual');
 const elDispVol = document.getElementById('dispVol');
 const elDispCbm = document.getElementById('dispCbm');
 
 function renderTableStructure() {
-    renderProfileDropdown();
+    // Only render if we have a valid profile
     const profile = getActiveProfile();
-    const activeRows = profile.rows;
+    if(!profile) return; 
 
-    // Build Header
+    const activeRows = profile.rows;
+    const currentLimits = profile.limits; 
+
+    // Header
     let headerHtml = `
         <th style="width: 100px;">Origin</th>
         <th style="width: 100px;">Destination</th>
         <th style="width: 140px;">Service Mode</th> `;
 
-    BRACKET_LIMITS.forEach((limit, index) => {
-        const prevLimit = index === 0 ? 0 : BRACKET_LIMITS[index - 1];
+    currentLimits.forEach((limit, index) => {
+        const prevLimit = index === 0 ? 0 : currentLimits[index - 1];
         const startVal = prevLimit + 1;
+        
         headerHtml += `
         <th>
-            <span id="start-${index}" class="header-range-text">${startVal}</span> - 
-            <input type="number" class="header-input" 
-                   value="${limit}" 
-                   onchange="handleEditLimit(${index}, this.value)">
+            <div class="col-header-container">
+                <button class="btn-col-delete" onclick="deleteColumn(${index})" title="Delete Column">✕</button>
+                <div class="range-wrapper">
+                    <span id="start-${index}" class="header-range-text">${startVal}</span> - 
+                    <input type="number" class="header-input" 
+                           value="${limit}" 
+                           onchange="handleEditLimit(${index}, this.value)">
+                </div>
+            </div>
         </th>`;
     });
     headerHtml += `<th style="width: 60px;">Action</th>`;
     elTableHeader.innerHTML = headerHtml;
 
-    // Build Body
+    // Body
     let bodyHtml = '';
     activeRows.forEach((row, rowIndex) => {
         let ratesHtml = '';
-        while(row.rates.length < BRACKET_LIMITS.length) row.rates.push(null);
+        while(row.rates.length < currentLimits.length) row.rates.push(null);
 
         const currentService = row.serviceMode || SERVICE_MODES[0];
-
-        // Build Service Dropdown for this specific row
         const serviceOptions = SERVICE_MODES.map(mode => 
             `<option value="${mode}" ${mode === currentService ? 'selected' : ''}>${mode}</option>`
         ).join('');
 
         row.rates.forEach((rate, colIndex) => {
-            if(colIndex < BRACKET_LIMITS.length) {
+            if(colIndex < currentLimits.length) {
                 const displayVal = (rate === null) ? "" : rate;
                 ratesHtml += `
                 <td>
@@ -425,16 +593,12 @@ function highlightRow(index) {
 // ---- ACTIONS ----
 
 document.getElementById('addColBtn').addEventListener('click', () => {
-    const lastLimit = BRACKET_LIMITS[BRACKET_LIMITS.length - 1] || 0;
-    BRACKET_LIMITS.push(lastLimit + 50);
+    const profile = getActiveProfile();
+    const currentLimits = profile.limits;
+    const lastLimit = currentLimits[currentLimits.length - 1] || 0;
     
-    MODEL_KEYS.forEach(key => {
-        if(DATA_STORE[key] && DATA_STORE[key].profiles) {
-            Object.values(DATA_STORE[key].profiles).forEach(prof => {
-                prof.rows.forEach(r => r.rates.push(null));
-            });
-        }
-    });
+    profile.limits.push(lastLimit + 50);
+    profile.rows.forEach(r => r.rates.push(null));
     
     saveToLocal();
     renderTableStructure();
@@ -443,7 +607,7 @@ document.getElementById('addColBtn').addEventListener('click', () => {
 
 document.getElementById('addRowBtn').addEventListener('click', () => {
     const profile = getActiveProfile();
-    profile.rows.push(createEmptyRow());
+    profile.rows.push(createEmptyRow(profile.limits.length));
     saveToLocal();
     renderTableStructure();
 });
@@ -453,7 +617,9 @@ document.getElementById('addRowBtn').addEventListener('click', () => {
 window.handleEditLimit = function(index, value) {
     const val = parseFloat(value);
     if (isNaN(val) || val <= 0) return;
-    BRACKET_LIMITS[index] = val;
+    
+    const profile = getActiveProfile();
+    profile.limits[index] = val;
     saveToLocal();
     renderTableStructure(); 
     calculate();
@@ -461,11 +627,9 @@ window.handleEditLimit = function(index, value) {
 
 window.handleEditRate = function(rowIndex, colIndex, value) {
     const profile = getActiveProfile();
-    if (value === "") {
-        profile.rows[rowIndex].rates[colIndex] = null;
-    } else {
-        profile.rows[rowIndex].rates[colIndex] = parseFloat(value);
-    }
+    if (value === "") profile.rows[rowIndex].rates[colIndex] = null;
+    else profile.rows[rowIndex].rates[colIndex] = parseFloat(value);
+    
     saveToLocal();
     calculate(); 
 };
@@ -497,8 +661,32 @@ window.deleteRow = function(index) {
     calculate();
 };
 
+window.deleteColumn = function(index) {
+    const profile = getActiveProfile();
+
+    if (profile.limits.length <= 1) {
+        alert("Cannot delete the last remaining weight column.");
+        return;
+    }
+
+    if (!confirm("Delete this weight column for THIS table?")) {
+        return;
+    }
+
+    profile.limits.splice(index, 1);
+    profile.rows.forEach(row => {
+        if (row.rates.length > index) {
+            row.rates.splice(index, 1);
+        }
+    });
+
+    saveToLocal();
+    renderTableStructure();
+    calculate();
+};
+
 /* =========================================
-   5. CALCULATION LOGIC
+   6. CALCULATION
    ========================================= */
 
 function calculate() {
@@ -532,8 +720,9 @@ function calculate() {
     }
 
     const profile = getActiveProfile();
+    if(!profile) return;
+    const currentLimits = profile.limits;
     
-    // Find row matching Origin, Dest AND ServiceMode
     const routeIndex = profile.rows.findIndex(r => 
         r.origin === origin && 
         r.dest === dest && 
@@ -550,10 +739,10 @@ function calculate() {
     const route = profile.rows[routeIndex];
 
     const strategyFn = strategies[model] || strategies.fixed;
-    const total = strategyFn(chargeableWeight, route.rates);
+    const total = strategyFn(chargeableWeight, route.rates, currentLimits);
 
     if (total === null) {
-        const maxLimit = BRACKET_LIMITS[BRACKET_LIMITS.length - 1];
+        const maxLimit = currentLimits[currentLimits.length - 1];
         if (chargeableWeight > maxLimit) {
              elResult.textContent = "Over Limit";
              elDesc.textContent = `Weight (${chargeableWeight}kg) exceeds ${maxLimit}kg limit`;
@@ -563,14 +752,7 @@ function calculate() {
         }
     } else {
         elResult.textContent = `Php ${total.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-        
-        const bracketIdx = getBracketIndex(chargeableWeight);
-        let bracketLabel = "Unknown";
-        if (bracketIdx !== -1) {
-            const min = bracketIdx === 0 ? 1 : BRACKET_LIMITS[bracketIdx - 1] + 1;
-            const max = BRACKET_LIMITS[bracketIdx];
-            bracketLabel = `${min}-${max}kg`;
-        }
+        const bracketIdx = getBracketIndex(chargeableWeight, currentLimits);
         
         const basisLabel = chargeBasis === 'volumetric' ? 'Vol. Wt.' : 'Act. Wt.';
         elDesc.textContent = `${model} | ${basisLabel} | ${serviceMode}`;
@@ -598,7 +780,7 @@ elChargeBasis.addEventListener('change', calculate);
 document.getElementById('calculateBtn').addEventListener('click', calculate);
 
 /* =========================================
-   6. EXPORT / IMPORT (XLSX & JSON)
+   7. EXPORT / IMPORT
    ========================================= */
 
 function downloadFile(content, fileName, mimeType) {
@@ -611,301 +793,19 @@ function downloadFile(content, fileName, mimeType) {
     document.body.removeChild(a);
 }
 
-// --- EXPORT TO EXCEL WITH DROPDOWN ---
-document.getElementById('btnExportCsv').addEventListener('click', async () => {
-    const model = elModel.value;
-    const profile = getActiveProfile();
-    
-    // Create new Workbook
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet(profile.name || 'Sheet1');
-
-    // Headers
-    const headers = ["Origin", "Destination", "ServiceMode"];
-    BRACKET_LIMITS.forEach((lim, i) => {
-        const prev = i === 0 ? 1 : BRACKET_LIMITS[i-1] + 1;
-        headers.push(`Rate_${prev}_${lim}`);
-    });
-
-    worksheet.addRow(headers);
-    worksheet.getRow(1).font = { bold: true };
-
-    // Rows
-    profile.rows.forEach(row => {
-        const rowData = [
-            row.origin, 
-            row.dest, 
-            row.serviceMode || "DOOR TO DOOR"
-        ];
-        row.rates.forEach(r => {
-            rowData.push(r === null ? "" : r);
-        });
-        worksheet.addRow(rowData);
-    });
-
-    // ADD DROPDOWN TO SERVICE MODE (Column 3)
-    const serviceModeColIndex = 3; 
-    const rowCount = worksheet.rowCount;
-    // Comma-separated string for list validation
-    const dropdownList = `"${SERVICE_MODES.join(',')}"`;
-
-    for (let i = 2; i <= rowCount; i++) {
-        const cell = worksheet.getCell(i, serviceModeColIndex);
-        cell.dataValidation = {
-            type: 'list',
-            allowBlank: false,
-            formulae: [dropdownList],
-            showErrorMessage: true,
-            errorTitle: 'Invalid Service Mode',
-            error: 'Select a valid Service Mode from the list.'
-        };
-    }
-
-    // Write & Download
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-    
-    const safeName = profile.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-    const fileName = `${model}_${safeName}.xlsx`;
-
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-});
-
-// --- IMPORT (CSV OR XLSX) ---
-document.getElementById('csvUpload').addEventListener('change', (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    // Check extension
-    if (file.name.endsWith('.xlsx')) {
-        // Handle Excel Import
-        const reader = new FileReader();
-        reader.onload = async function(e) {
-            const buffer = e.target.result;
-            const workbook = new ExcelJS.Workbook();
-            await workbook.xlsx.load(buffer);
-            const worksheet = workbook.getWorksheet(1); // Read first sheet
-            processXLSXImport(worksheet);
-            event.target.value = ''; // Reset
-        };
-        reader.readAsArrayBuffer(file);
-    } else {
-        // Handle CSV Import (Legacy)
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const text = e.target.result;
-            processCSVImport(text);
-            event.target.value = '';
-        };
-        reader.readAsText(file);
-    }
-});
-
-function processXLSXImport(worksheet) {
-    if (!worksheet || worksheet.rowCount < 2) {
-        alert("Invalid Excel file.");
-        return;
-    }
-
-    // 1. Parse Headers (Row 1)
-    const headerRow = worksheet.getRow(1);
-    const headers = [];
-    headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-        headers[colNumber - 1] = cell.value ? cell.value.toString() : ""; 
-    });
-
-    const hasServiceMode = headers[2].trim().toLowerCase() === 'servicemode';
-    const rateStartIndex = hasServiceMode ? 3 : 2;
-
-    const newLimits = [];
-    const rateColIndices = []; // 1-based index for ExcelJS getCell
-
-    for (let i = rateStartIndex; i < headers.length; i++) {
-        const colName = headers[i].trim();
-        const parts = colName.split('_');
-        const limitVal = parseFloat(parts[parts.length - 1]);
-        if (!isNaN(limitVal)) {
-            newLimits.push(limitVal);
-            rateColIndices.push(i + 1); // ExcelJS uses 1-based columns
-        }
-    }
-
-    if (newLimits.length === 0) {
-        alert("No rate columns found (Format: Rate_X_Y).");
-        return;
-    }
-
-    // 2. Check Limits
-    const limitsChanged = JSON.stringify(BRACKET_LIMITS) !== JSON.stringify(newLimits);
-    if (limitsChanged) {
-        const confirmMsg = "Warning: The weight columns in the Excel file are different from the current setup.\n\n" +
-                           "Importing this will update the weight brackets for ALL tables in the app.\n\n" +
-                           "Proceed?";
-        if (!confirm(confirmMsg)) return;
-        BRACKET_LIMITS = newLimits;
-        // Update all profiles to match new width
-        MODEL_KEYS.forEach(key => {
-            if (DATA_STORE[key] && DATA_STORE[key].profiles) {
-                Object.values(DATA_STORE[key].profiles).forEach(p => {
-                    p.rows.forEach(r => {
-                        while (r.rates.length < newLimits.length) r.rates.push(null);
-                        if (r.rates.length > newLimits.length) r.rates = r.rates.slice(0, newLimits.length);
-                    });
-                });
-            }
-        });
-    }
-
-    // 3. Parse Data Rows
-    const profile = getActiveProfile();
-    const newRows = [];
-
-    worksheet.eachRow((row, rowNumber) => {
-        if (rowNumber === 1) return; // Skip header
-
-        const rowOrigin = row.getCell(1).value ? row.getCell(1).value.toString().trim() : "";
-        const rowDest = row.getCell(2).value ? row.getCell(2).value.toString().trim() : "";
-        
-        if (!rowOrigin && !rowDest) return;
-
-        let rowService = "DOOR TO DOOR";
-        if (hasServiceMode) {
-            const rawService = row.getCell(3).value ? row.getCell(3).value.toString().trim().toUpperCase() : "";
-            if(SERVICE_MODES.includes(rawService)) {
-                rowService = rawService;
-            }
-        }
-
-        const rowRates = [];
-        rateColIndices.forEach(colIdx => {
-            const cellVal = row.getCell(colIdx).value;
-            // Handle Excel richness (if cell is object) or simple value
-            let val = (cellVal && typeof cellVal === 'object' && cellVal.result !== undefined) ? cellVal.result : cellVal;
-            val = parseFloat(val);
-            rowRates.push(isNaN(val) ? null : val);
-        });
-
-        newRows.push({
-            origin: rowOrigin,
-            dest: rowDest,
-            serviceMode: rowService,
-            rates: rowRates
-        });
-    });
-
-    profile.rows = newRows;
-    saveToLocal();
-    renderTableStructure();
-    calculate();
-    alert("Excel Imported Successfully! Rates and Service Modes updated.");
-}
-
-function processCSVImport(csvText) {
-    const lines = csvText.trim().split(/\r?\n/);
-    if (lines.length < 2) {
-        alert("Invalid CSV: Not enough data.");
-        return;
-    }
-
-    const headers = lines[0].split(',');
-    const hasServiceMode = headers[2].trim().toLowerCase() === 'servicemode';
-    const rateStartIndex = hasServiceMode ? 3 : 2;
-
-    const newLimits = [];
-    const rateColIndices = []; 
-
-    for (let i = rateStartIndex; i < headers.length; i++) {
-        const colName = headers[i].trim();
-        const parts = colName.split('_');
-        const limitVal = parseFloat(parts[parts.length - 1]);
-
-        if (!isNaN(limitVal)) {
-            newLimits.push(limitVal);
-            rateColIndices.push(i);
-        }
-    }
-
-    if (newLimits.length === 0) {
-        alert("No rate columns found (Format: Rate_X_Y).");
-        return;
-    }
-
-    const limitsChanged = JSON.stringify(BRACKET_LIMITS) !== JSON.stringify(newLimits);
-    if (limitsChanged) {
-        const confirmMsg = "Warning: The weight columns in the CSV are different from the current setup.\n\n" +
-                           "Importing this will update the weight brackets for ALL tables in the app.\n\n" +
-                           "Proceed?";
-        if (!confirm(confirmMsg)) return;
-        BRACKET_LIMITS = newLimits;
-        MODEL_KEYS.forEach(key => {
-            if (DATA_STORE[key] && DATA_STORE[key].profiles) {
-                Object.values(DATA_STORE[key].profiles).forEach(p => {
-                    p.rows.forEach(r => {
-                        while (r.rates.length < newLimits.length) r.rates.push(null);
-                        if (r.rates.length > newLimits.length) r.rates = r.rates.slice(0, newLimits.length);
-                    });
-                });
-            }
-        });
-    }
-
-    const profile = getActiveProfile();
-    const newRows = [];
-
-    for (let i = 1; i < lines.length; i++) {
-        const cells = lines[i].split(',');
-        if (cells.length < 2) continue;
-
-        const rowOrigin = cells[0].trim();
-        const rowDest = cells[1].trim();
-        
-        let rowService = "DOOR TO DOOR";
-        if (hasServiceMode) {
-            const rawService = cells[2].trim().toUpperCase();
-            if(SERVICE_MODES.includes(rawService)) {
-                rowService = rawService;
-            }
-        }
-        
-        if (!rowOrigin && !rowDest) continue;
-
-        const rowRates = [];
-        rateColIndices.forEach(colIndex => {
-            const valStr = cells[colIndex] ? cells[colIndex].trim() : "";
-            const val = parseFloat(valStr);
-            rowRates.push(isNaN(val) ? null : val);
-        });
-
-        newRows.push({
-            origin: rowOrigin,
-            dest: rowDest,
-            serviceMode: rowService,
-            rates: rowRates
-        });
-    }
-
-    profile.rows = newRows;
-    saveToLocal();
-    renderTableStructure();
-    calculate();
-    alert("CSV Imported Successfully!");
-}
-
+// --- EXPORT JSON (Full Client Backup) ---
 document.getElementById('btnExportJson').addEventListener('click', () => {
+    const client = getActiveClient();
     const exportObj = {
-        app_version: "ratrix_v2_profiles",
-        limits: BRACKET_LIMITS,
-        data_store: DATA_STORE
+        app_version: "ratrix_v3_client_backup",
+        client_data: client
     };
     const json = JSON.stringify(exportObj, null, 2);
-    downloadFile(json, "full_matrix_db.json", "application/json");
+    const safeName = client.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    downloadFile(json, `backup_${safeName}.json`, "application/json");
 });
 
+// --- RESTORE JSON ---
 document.getElementById('jsonUpload').addEventListener('change', (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -913,20 +813,20 @@ document.getElementById('jsonUpload').addEventListener('change', (event) => {
     reader.onload = function(e) {
         try {
             const imported = JSON.parse(e.target.result);
-            if (imported.app_version === "ratrix_v2_profiles") {
-                BRACKET_LIMITS = imported.limits || BRACKET_LIMITS;
-                DATA_STORE = imported.data_store || DATA_STORE;
-            } 
-            else {
-                alert("Older format detected. Please check column limits.");
-                if (imported.limits) BRACKET_LIMITS = imported.limits;
+            if (imported.app_version === "ratrix_v3_client_backup" && imported.client_data) {
+                // Confirm overwrite
+                const clientName = imported.client_data.name;
+                if(confirm(`Restore data for "${clientName}"? This will create a NEW client entry.`)) {
+                    // Create new ID to avoid conflict, or overwrite if logic dictates
+                    const newId = generateId('c_');
+                    imported.client_data.id = newId; 
+                    GLOBAL_STORE.clients[newId] = imported.client_data;
+                    switchClient(newId);
+                    alert("Client restored successfully!");
+                }
+            } else {
+                alert("Invalid or incompatible backup file.");
             }
-
-            saveToLocal();
-            renderProfileDropdown();
-            renderTableStructure();
-            calculate();
-            alert("Matrix data loaded successfully!");
         } catch (err) {
             console.error(err);
             alert("Error parsing JSON.");
@@ -936,11 +836,124 @@ document.getElementById('jsonUpload').addEventListener('change', (event) => {
     reader.readAsText(file);
 });
 
+// --- EXCEL LOGIC (Scoped to Active Client Profile) ---
+document.getElementById('btnExportCsv').addEventListener('click', async () => {
+    const model = elModel.value;
+    const profile = getActiveProfile();
+    const currentLimits = profile.limits;
+    
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet(profile.name || 'Sheet1');
+
+    const headers = ["Origin", "Destination", "ServiceMode"];
+    currentLimits.forEach((lim, i) => {
+        const prev = i === 0 ? 1 : currentLimits[i-1] + 1;
+        headers.push(`Rate_${prev}_${lim}`);
+    });
+
+    worksheet.addRow(headers);
+    worksheet.getRow(1).font = { bold: true };
+
+    profile.rows.forEach(row => {
+        const rowData = [row.origin, row.dest, row.serviceMode || "DOOR TO DOOR"];
+        row.rates.forEach(r => rowData.push(r === null ? "" : r));
+        worksheet.addRow(rowData);
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const safeName = profile.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const clientSafe = getActiveClient().name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    downloadFile(blob, `${clientSafe}_${model}_${safeName}.xlsx`, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+});
+
+document.getElementById('csvUpload').addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    if (file.name.endsWith('.xlsx')) {
+        const reader = new FileReader();
+        reader.onload = async function(e) {
+            const buffer = e.target.result;
+            const workbook = new ExcelJS.Workbook();
+            await workbook.xlsx.load(buffer);
+            processXLSXImport(workbook.getWorksheet(1));
+            event.target.value = '';
+        };
+        reader.readAsArrayBuffer(file);
+    }
+});
+
+function processXLSXImport(worksheet) {
+    if (!worksheet || worksheet.rowCount < 2) { alert("Invalid Excel file."); return; }
+    
+    // Header Parsing
+    const headerRow = worksheet.getRow(1);
+    const headers = [];
+    headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => headers[colNumber - 1] = cell.value ? cell.value.toString() : "");
+
+    const hasServiceMode = headers[2].trim().toLowerCase() === 'servicemode';
+    const rateStartIndex = hasServiceMode ? 3 : 2;
+    const newLimits = [];
+    const rateColIndices = [];
+
+    for (let i = rateStartIndex; i < headers.length; i++) {
+        const colName = headers[i].trim();
+        const parts = colName.split('_');
+        const limitVal = parseFloat(parts[parts.length - 1]);
+        if (!isNaN(limitVal)) {
+            newLimits.push(limitVal);
+            rateColIndices.push(i + 1);
+        }
+    }
+
+    if (newLimits.length === 0) { alert("No rate columns found."); return; }
+
+    const profile = getActiveProfile();
+    const limitsChanged = JSON.stringify(profile.limits) !== JSON.stringify(newLimits);
+    if (limitsChanged) {
+        if (!confirm("Weight columns differ. Update THIS table's structure?")) return;
+        profile.limits = newLimits;
+        profile.rows.forEach(r => {
+            while (r.rates.length < newLimits.length) r.rates.push(null);
+            if (r.rates.length > newLimits.length) r.rates = r.rates.slice(0, newLimits.length);
+        });
+    }
+
+    const newRows = [];
+    worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return;
+        const rowOrigin = row.getCell(1).value ? row.getCell(1).value.toString().trim() : "";
+        const rowDest = row.getCell(2).value ? row.getCell(2).value.toString().trim() : "";
+        if (!rowOrigin && !rowDest) return;
+
+        let rowService = "DOOR TO DOOR";
+        if (hasServiceMode) {
+            const rawService = row.getCell(3).value ? row.getCell(3).value.toString().trim().toUpperCase() : "";
+            if(SERVICE_MODES.includes(rawService)) rowService = rawService;
+        }
+
+        const rowRates = [];
+        rateColIndices.forEach(colIdx => {
+            const cellVal = row.getCell(colIdx).value;
+            let val = (cellVal && typeof cellVal === 'object' && cellVal.result !== undefined) ? cellVal.result : cellVal;
+            val = parseFloat(val);
+            rowRates.push(isNaN(val) ? null : val);
+        });
+
+        newRows.push({ origin: rowOrigin, dest: rowDest, serviceMode: rowService, rates: rowRates });
+    });
+
+    profile.rows = newRows;
+    saveToLocal();
+    renderTableStructure();
+    calculate();
+    alert("Import Successful!");
+}
+
 // Theme
 const themeToggleBtn = document.getElementById('theme-toggle');
 const htmlElement = document.documentElement;
-const currentTheme = localStorage.getItem('theme') || 
-                     (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+const currentTheme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 htmlElement.setAttribute('data-theme', currentTheme);
 
 if(themeToggleBtn) {
@@ -952,5 +965,5 @@ if(themeToggleBtn) {
     });
 }
 
-// Init
-renderTableStructure();
+// START
+initApp();
