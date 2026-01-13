@@ -62,10 +62,9 @@
             color: var(--text-main);
             height: 100vh;
             display: flex;
-            overflow: hidden; /* Prevent body scroll, use inner scroll */
+            overflow: hidden; 
         }
 
-        /* LAYOUT WRAPPER */
         .app-wrapper {
             display: grid;
             grid-template-columns: var(--sidebar-width) 1fr;
@@ -103,13 +102,14 @@
         }
 
         .client-item {
-            padding: 12px;
+            padding: 10px;
             border: 1px solid var(--border-color);
             border-radius: 8px;
-            cursor: pointer;
             background: var(--bg-container);
             transition: all 0.2s;
-            position: relative;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         .client-item:hover { border-color: var(--brand-primary); }
         .client-item.active {
@@ -118,8 +118,15 @@
             border-left: 4px solid var(--active-item-border);
         }
         
-        .client-name { font-weight: 600; font-size: 0.95rem; display: block; }
-        .client-meta { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; }
+        .client-name-area { flex: 1; cursor: pointer; font-weight: 600; font-size: 0.9rem; }
+        
+        /* Sidebar View Button */
+        .btn-sidebar-view {
+            background: transparent; border: 1px solid var(--border-color);
+            color: var(--text-muted); border-radius: 4px; padding: 4px 8px;
+            font-size: 0.7rem; cursor: pointer; margin-left: 8px;
+        }
+        .btn-sidebar-view:hover { background: var(--brand-primary); color: white; border-color: var(--brand-primary); }
 
         .btn-add-client {
             margin-top: 15px;
@@ -156,31 +163,28 @@
         /* --- MAIN CONTENT AREA --- */
         .main-content {
             padding: 20px;
-            overflow-y: auto; /* Scroll strictly inside this area */
+            overflow-y: auto; 
             background-color: var(--bg-body);
+            position: relative;
         }
 
-        /* Adjusted Container for inside the layout */
+        /* VIEW TOGGLING */
+        .view-section { display: none; }
+        .view-section.active-view { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* EDITOR STYLES (Existing) */
         .calculator-container {
-            width: 100%;
-            max-width: 1400px; /* Increased for better fit */
-            margin: 0 auto;
-            background: var(--bg-container);
-            border-radius: 12px;
+            width: 100%; max-width: 1400px; margin: 0 auto;
+            background: var(--bg-container); border-radius: 12px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-            display: grid;
-            grid-template-rows: auto 1fr;
+            display: grid; grid-template-rows: auto 1fr;
             border: 1px solid var(--border-color);
         }
 
-        /* HEADER */
         .header {
-            background: var(--bg-container);
-            color: var(--text-main);
-            padding: 15px 25px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            background: var(--bg-container); color: var(--text-main);
+            padding: 15px 25px; display: flex; justify-content: space-between; align-items: center;
             border-bottom: 1px solid var(--border-color);
         }
         .header h1 { margin: 0; font-size: 1.1rem; font-weight: 700; display:flex; align-items: center; gap: 10px;}
@@ -189,17 +193,9 @@
             font-size: 0.8rem; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--active-item-border);
         }
 
-        /* THEME TOGGLE */
         .theme-toggle-btn {
-            background: transparent;
-            border: 1px solid var(--border-color);
-            color: var(--text-muted);
-            padding: 6px;
-            border-radius: 6px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            background: transparent; border: 1px solid var(--border-color); color: var(--text-muted);
+            padding: 6px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center;
         }
         .theme-icon { width: 18px; height: 18px; fill: currentColor; }
         [data-theme="light"] .icon-moon { display: block; }
@@ -207,46 +203,21 @@
         [data-theme="dark"] .icon-sun { display: block; }
         [data-theme="dark"] .icon-moon { display: none; }
 
-        /* CONTENT GRID (Calculator Split) */
-        .content-grid {
-            display: grid;
-            grid-template-columns: 300px 1fr; /* Slightly narrower inputs */
-        }
-
-        /* LEFT PANEL (Inputs) */
+        .content-grid { display: grid; grid-template-columns: 300px 1fr; }
         .input-panel {
-            padding: 25px;
-            background: var(--bg-container);
-            border-right: 1px solid var(--border-color);
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
+            padding: 25px; background: var(--bg-container); border-right: 1px solid var(--border-color);
+            display: flex; flex-direction: column; gap: 12px;
         }
-
-        .input-group label {
-            display: block; font-size: 0.75rem; font-weight: 700; margin-bottom: 5px; color: var(--text-muted);
-        }
+        .input-group label { display: block; font-size: 0.75rem; font-weight: 700; margin-bottom: 5px; color: var(--text-muted); }
         .input-group select, .input-group input {
             width: 100%; padding: 8px; border: 1px solid var(--border-color);
             background-color: var(--bg-input); color: var(--text-main); border-radius: 5px; font-size: 0.85rem;
         }
         .dim-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
 
-        /* RIGHT PANEL (Table) */
-        .info-panel {
-            padding: 25px;
-            background: var(--bg-secondary);
-            display: flex; flex-direction: column; overflow: hidden; 
-        }
-
-        /* TABLE STYLES */
-        .table-wrapper {
-            overflow-x: auto; margin-bottom: 15px; border: 1px solid var(--border-color);
-            border-radius: 8px; background: var(--bg-container);
-        }
-        .rate-table {
-            width: max-content; min-width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8rem;
-        }
+        .info-panel { padding: 25px; background: var(--bg-secondary); display: flex; flex-direction: column; overflow: hidden; }
+        .table-wrapper { overflow-x: auto; margin-bottom: 15px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-container); }
+        .rate-table { width: max-content; min-width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8rem; }
         .rate-table th {
             background: var(--bg-container); color: var(--text-muted); padding: 10px 8px; text-align: center;
             font-weight: 600; white-space: nowrap; position: sticky; top: 0; z-index: 20; border-bottom: 1px solid var(--border-color);
@@ -255,63 +226,76 @@
         .rate-table th:nth-child(2), .rate-table td:nth-child(2) { position: sticky; left: 100px; z-index: 10; }
         .rate-table th:nth-child(1) { z-index: 30; }
         .rate-table th:nth-child(2) { z-index: 30; }
-        
-        .rate-table td {
-            padding: 6px 8px; border-bottom: 1px solid var(--border-color); color: var(--text-main);
-            vertical-align: middle; text-align: center; background: var(--bg-container);
-        }
+        .rate-table td { padding: 6px 8px; border-bottom: 1px solid var(--border-color); color: var(--text-main); vertical-align: middle; text-align: center; background: var(--bg-container); }
         .active-route-row td { background-color: var(--state-success-bg) !important; font-weight: 700; }
-
-        /* Table Inputs */
-        .editable-input {
-            width: 70px; padding: 5px; border: 1px solid var(--border-color); border-radius: 4px;
-            font-size: 0.85rem; color: var(--text-main); font-weight: 600; background: var(--bg-input); text-align: center;
-        }
+        .editable-input { width: 70px; padding: 5px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.85rem; color: var(--text-main); font-weight: 600; background: var(--bg-input); text-align: center; }
         .editable-input.text-input { width: 90px; text-align: left; }
         .header-input { width: 50px; padding: 2px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--brand-primary); font-weight: 700; border-radius: 3px; text-align: center; }
-
-        /* Column Delete */
         .col-header-container { display: flex; flex-direction: column; align-items: center; gap: 3px; }
         .range-wrapper { display: flex; align-items: center; justify-content: center; gap: 4px; }
-        .btn-col-delete {
-            background: transparent; border: none; color: var(--state-danger-text); font-size: 0.65rem; font-weight: bold; cursor: pointer; padding: 2px 5px; opacity: 0.5;
-        }
+        .btn-col-delete { background: transparent; border: none; color: var(--state-danger-text); font-size: 0.65rem; font-weight: bold; cursor: pointer; padding: 2px 5px; opacity: 0.5; }
         .btn-col-delete:hover { background: var(--state-danger-bg); opacity: 1; }
-
-        /* Buttons & Actions */
         .btn-delete { background: var(--state-danger-bg); color: var(--state-danger-text); border: none; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 0.7rem; }
         .action-bar { display: flex; gap: 10px; margin-bottom: 15px; }
         .btn-add { background: transparent; border: 1px dashed var(--brand-primary); color: var(--brand-primary); padding: 8px; flex: 1; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }
         .btn-add:hover { background: var(--brand-primary); color: white; }
-        
         .btn-export { flex: 1; background: var(--bg-container); border: 1px solid var(--border-color); color: var(--text-muted); padding: 8px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: 600; }
         .btn-export:hover { border-color: var(--text-main); color: var(--text-main); background: var(--bg-secondary); }
         .btn-import { display: block; width: 100%; text-align: center; background: var(--bg-secondary); color: var(--text-muted); border: 1px solid var(--border-color); padding: 8px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: 600; }
-        
         .icon-btn { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: var(--bg-container); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; color: var(--text-main); }
         .icon-btn:hover { background: var(--brand-primary); color: white; border-color: var(--brand-primary); }
         .icon-btn-danger { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: var(--bg-container); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; color: var(--state-danger-text); }
         .icon-btn-danger:hover { background: var(--state-danger-bg); border-color: var(--state-danger-text); }
-
-        /* Result Box */
         .result-box { margin-top: auto; background: var(--bg-container); border: 1px solid var(--border-color); border-left: 5px solid var(--brand-primary); padding: 15px; border-radius: 8px; }
         .result-label { font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
         .result-value { font-size: 1.8rem; color: var(--text-main); font-weight: 700; display: block; margin: 5px 0; }
         .formula-text { font-size: 0.75rem; color: var(--text-muted); font-style: italic; }
-        
         .stat-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px dashed var(--border-color); }
         .stat-item { display: flex; flex-direction: column; }
         .stat-val { font-weight: 700; color: var(--text-main); font-size: 0.9rem; }
         .stat-title { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; }
-
         #calculateBtn { width: 100%; padding: 12px; background: var(--brand-primary); color: white; border: none; border-radius: 6px; font-size: 0.95rem; font-weight: 600; cursor: pointer; margin-top: 10px; }
         #calculateBtn:hover { background: var(--brand-hover); }
 
-        /* Responsive */
+        /* --- READ ONLY VIEWER STYLES --- */
+        .viewer-header {
+            background: var(--bg-container); padding: 20px; border-bottom: 1px solid var(--border-color);
+            display: flex; justify-content: space-between; align-items: center;
+            border-radius: 12px 12px 0 0;
+        }
+        .viewer-container {
+            max-width: 1400px; margin: 0 auto; background: var(--bg-secondary); border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05); min-height: 80vh;
+        }
+        .viewer-content { padding: 30px; }
+        
+        .model-section { margin-bottom: 40px; background: var(--bg-container); padding: 20px; border-radius: 8px; border: 1px solid var(--border-color); }
+        .model-title { font-size: 1.1rem; font-weight: 700; color: var(--brand-primary); margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid var(--border-color); text-transform: uppercase; }
+        
+        .ro-table-card { margin-bottom: 25px; }
+        .ro-table-title { font-size: 0.95rem; font-weight: 600; margin-bottom: 10px; color: var(--text-main); display: flex; align-items: center; gap: 8px; }
+        .ro-table-wrapper { overflow-x: auto; border: 1px solid var(--border-color); border-radius: 6px; }
+        .ro-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        .ro-table th { background: var(--bg-secondary); color: var(--text-muted); padding: 8px; border-bottom: 1px solid var(--border-color); text-align: center; }
+        .ro-table td { padding: 8px; border-bottom: 1px solid var(--border-color); text-align: center; color: var(--text-main); }
+        .ro-table tr:last-child td { border-bottom: none; }
+        .ro-origin-dest { text-align: left !important; font-weight: 600; width: 120px; }
+
+        .btn-back {
+            background: var(--bg-input); border: 1px solid var(--border-color); color: var(--text-main);
+            padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 5px;
+        }
+        .btn-back:hover { background: var(--bg-secondary); border-color: var(--text-muted); }
+        
+        .btn-save-view {
+            background: var(--brand-primary); color: white; border: none;
+            padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 600;
+        }
+        .btn-save-view:hover { background: var(--brand-hover); }
+
         @media (max-width: 900px) {
             .app-wrapper { grid-template-columns: 1fr; }
-            .sidebar { display: none; /* Hide sidebar on small mobile for now, or make hamburger */ }
-            /* Simple mobile handling: Just stack them if needed, but for now we focus on Desktop Sidebar */
+            .sidebar { display: none; }
         }
     </style>
 </head>
@@ -342,148 +326,169 @@
     </aside>
 
     <main class="main-content">
-        <div class="calculator-container">
-            <div class="header">
-                <h1>RATRIX <span style="font-weight:400; color:var(--border-color); margin:0 10px;">|</span> <span id="headerClientName" class="current-client-badge">Loading...</span></h1>
-                <div style="font-size: 0.8rem; color: var(--text-muted);">V2.0 Client Isolation</div>
-            </div>
-
-            <div class="content-grid">
-                <div class="input-panel">
-                    <div class="input-group">
-                        <label>Pricing Model</label>
-                        <select id="pricingModel">
-                            <option value="fixed">Fixed Bracket (Standard)</option>
-                            <option value="flat">Flat Bracket Pricing</option>
-                            <option value="minFixed">Minimum Fixed Bracket</option>
-                            <option value="cumulative">Cumulative Bracket Pricing</option>
-                            <option value="minCumulative">Minimum Cumulative Bracket</option>
-                            <option value="minExcess">Minimum Excess Bracket</option>
-                            <option value="excess">Excess Bracket Pricing</option>
-                        </select>
+        
+        <div id="editor-view" class="view-section active-view">
+            <div class="calculator-container">
+                <div class="header">
+                    <h1>RATRIX <span style="font-weight:400; color:var(--border-color); margin:0 10px;">|</span> <span id="headerClientName" class="current-client-badge">Loading...</span></h1>
+                    
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <button id="btnSaveAndOpenView" class="btn-save-view">💾 Save & View Tables</button>
                     </div>
-
-                    <div class="input-group" style="padding-top: 10px; border-top: 1px dashed var(--border-color);">
-                        <label>Saved Table (For Selected Model)</label>
-                        <div style="display: flex; gap: 6px;">
-                            <select id="tableProfileSelect" style="flex: 1; font-weight: 600;"></select>
-                            
-                            <button id="btnNewProfile" class="icon-btn" title="New Table">+</button>
-                            <button id="btnRenameProfile" class="icon-btn" title="Rename Table">✎</button>
-                            <button id="btnDeleteProfile" class="icon-btn-danger" title="Delete Table">🗑</button>
-                        </div>
-                    </div>
-
-                    <div class="input-group">
-                        <label>Route</label>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                            <select id="origin"></select>
-                            <select id="destination"></select>
-                        </div>
-                    </div>
-
-                    <div class="input-group">
-                        <label>Service Mode</label>
-                        <select id="serviceModeInput">
-                            <option value="DOOR TO DOOR">DOOR TO DOOR</option>
-                            <option value="PORT TO PORT">PORT TO PORT</option>
-                            <option value="DOOR TO PORT">DOOR TO PORT</option>
-                            <option value="PORT TO DOOR">PORT TO DOOR</option>
-                        </select>
-                    </div>
-
-                    <div class="input-group">
-                        <label>Dimensions (L x W x H) cm</label>
-                        <div class="dim-grid">
-                            <input type="number" id="dimL" placeholder="L" min="0">
-                            <input type="number" id="dimW" placeholder="W" min="0">
-                            <input type="number" id="dimH" placeholder="H" min="0">
-                        </div>
-                    </div>
-
-                    <div class="input-group">
-                        <label>Volumetric Divisor</label>
-                        <input type="number" id="volDivisor" value="6000" placeholder="e.g. 6000">
-                    </div>
-
-                    <div class="input-group">
-                        <label>Actual Weight (kg)</label>
-                        <input type="number" id="weightInput" step="0.01" placeholder="e.g. 85.00">
-                    </div>
-
-                    <div class="input-group">
-                        <label>Charge Basis</label>
-                        <select id="chargeBasis">
-                            <option value="actual">Use Actual Weight</option>
-                            <option value="volumetric">Use Volumetric Weight</option>
-                        </select>
-                    </div>
-
-                    <button id="calculateBtn">Calculate Freight</button>
                 </div>
 
-                <div class="info-panel">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                        <label class="result-label">Matrix Rate Table</label>
-                    </div>
-                    
-                    <div class="table-wrapper">
-                        <table class="rate-table">
-                            <thead>
-                                <tr id="tableHeaderRow"></tr>
-                            </thead>
-                            <tbody id="rateTableBody"></tbody>
-                        </table>
-                    </div>
-
-                    <div class="action-bar">
-                        <button id="addRowBtn" class="btn-add">+ Add Route</button>
-                        <button id="addColBtn" class="btn-add" style="border-style: solid; background: var(--bg-secondary); color: var(--text-muted); border-color: var(--border-color);">+ Add Weight Column</button>
-                    </div>
-
-                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                        <button id="btnExportCsv" class="btn-export">Download Excel (XLSX)</button>
-                        <button id="btnExportJson" class="btn-export">Backup Client Data (JSON)</button>
-                    </div>
-
-                    <div style="margin-bottom: 20px; border-top: 1px dashed var(--border-color); padding-top: 15px; display:flex; gap:10px;">
-                        <div style="flex:1;">
-                            <input type="file" id="csvUpload" accept=".csv, .xlsx" style="display: none;" />
-                            <label for="csvUpload" class="btn-import" style="background:var(--bg-container); border:1px solid var(--brand-primary); color:var(--brand-primary);">
-                                Import Excel Rates
-                            </label>
+                <div class="content-grid">
+                    <div class="input-panel">
+                        <div class="input-group">
+                            <label>Pricing Model</label>
+                            <select id="pricingModel">
+                                <option value="fixed">Fixed Bracket (Standard)</option>
+                                <option value="flat">Flat Bracket Pricing</option>
+                                <option value="minFixed">Minimum Fixed Bracket</option>
+                                <option value="cumulative">Cumulative Bracket Pricing</option>
+                                <option value="minCumulative">Minimum Cumulative Bracket</option>
+                                <option value="minExcess">Minimum Excess Bracket</option>
+                                <option value="excess">Excess Bracket Pricing</option>
+                            </select>
                         </div>
-                        <div style="flex:1;">
-                            <input type="file" id="jsonUpload" accept=".json" style="display: none;" />
-                            <label for="jsonUpload" class="btn-import">
-                                📂 Restore Client Backup
-                            </label>
-                        </div>
-                    </div>
 
-                    <div class="result-box">
-                        <div class="stat-grid">
-                            <div class="stat-item">
-                                <span class="stat-title">Actual Wt.</span>
-                                <span class="stat-val" id="dispActual">0 kg</span>
-                            </div>
-                            <div class="stat-item">
-                                <span class="stat-title">Volumetric Wt.</span>
-                                <span class="stat-val" id="dispVol">0 kg</span>
-                            </div>
-                            <div class="stat-item">
-                                <span class="stat-title">CBM</span>
-                                <span class="stat-val" id="dispCbm">0.00</span>
+                        <div class="input-group" style="padding-top: 10px; border-top: 1px dashed var(--border-color);">
+                            <label>Saved Table (For Selected Model)</label>
+                            <div style="display: flex; gap: 6px;">
+                                <select id="tableProfileSelect" style="flex: 1; font-weight: 600;"></select>
+                                
+                                <button id="btnNewProfile" class="icon-btn" title="New Table">+</button>
+                                <button id="btnRenameProfile" class="icon-btn" title="Rename Table">✎</button>
+                                <button id="btnDeleteProfile" class="icon-btn-danger" title="Delete Table">🗑</button>
                             </div>
                         </div>
 
-                        <span class="result-label">Total Freight Charge</span>
-                        <span class="result-value" id="resultPrice">Php 0.00</span>
-                        <span class="formula-text" id="formulaDesc">Enter details to calculate</span>
+                        <div class="input-group">
+                            <label>Route</label>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                                <select id="origin"></select>
+                                <select id="destination"></select>
+                            </div>
+                        </div>
+
+                        <div class="input-group">
+                            <label>Service Mode</label>
+                            <select id="serviceModeInput">
+                                <option value="DOOR TO DOOR">DOOR TO DOOR</option>
+                                <option value="PORT TO PORT">PORT TO PORT</option>
+                                <option value="DOOR TO PORT">DOOR TO PORT</option>
+                                <option value="PORT TO DOOR">PORT TO DOOR</option>
+                            </select>
+                        </div>
+
+                        <div class="input-group">
+                            <label>Dimensions (L x W x H) cm</label>
+                            <div class="dim-grid">
+                                <input type="number" id="dimL" placeholder="L" min="0">
+                                <input type="number" id="dimW" placeholder="W" min="0">
+                                <input type="number" id="dimH" placeholder="H" min="0">
+                            </div>
+                        </div>
+
+                        <div class="input-group">
+                            <label>Volumetric Divisor</label>
+                            <input type="number" id="volDivisor" value="6000" placeholder="e.g. 6000">
+                        </div>
+
+                        <div class="input-group">
+                            <label>Actual Weight (kg)</label>
+                            <input type="number" id="weightInput" step="0.01" placeholder="e.g. 85.00">
+                        </div>
+
+                        <div class="input-group">
+                            <label>Charge Basis</label>
+                            <select id="chargeBasis">
+                                <option value="actual">Use Actual Weight</option>
+                                <option value="volumetric">Use Volumetric Weight</option>
+                            </select>
+                        </div>
+
+                        <button id="calculateBtn">Calculate Freight</button>
+                    </div>
+
+                    <div class="info-panel">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                            <label class="result-label">Matrix Rate Table</label>
+                        </div>
+                        
+                        <div class="table-wrapper">
+                            <table class="rate-table">
+                                <thead>
+                                    <tr id="tableHeaderRow"></tr>
+                                </thead>
+                                <tbody id="rateTableBody"></tbody>
+                            </table>
+                        </div>
+
+                        <div class="action-bar">
+                            <button id="addRowBtn" class="btn-add">+ Add Route</button>
+                            <button id="addColBtn" class="btn-add" style="border-style: solid; background: var(--bg-secondary); color: var(--text-muted); border-color: var(--border-color);">+ Add Weight Column</button>
+                        </div>
+
+                        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                            <button id="btnExportCsv" class="btn-export">Download Excel (XLSX)</button>
+                            <button id="btnExportJson" class="btn-export">Backup Client Data (JSON)</button>
+                        </div>
+
+                        <div style="margin-bottom: 20px; border-top: 1px dashed var(--border-color); padding-top: 15px; display:flex; gap:10px;">
+                            <div style="flex:1;">
+                                <input type="file" id="csvUpload" accept=".csv, .xlsx" style="display: none;" />
+                                <label for="csvUpload" class="btn-import" style="background:var(--bg-container); border:1px solid var(--brand-primary); color:var(--brand-primary);">
+                                    Import Excel Rates
+                                </label>
+                            </div>
+                            <div style="flex:1;">
+                                <input type="file" id="jsonUpload" accept=".json" style="display: none;" />
+                                <label for="jsonUpload" class="btn-import">
+                                    📂 Restore Client Backup
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="result-box">
+                            <div class="stat-grid">
+                                <div class="stat-item">
+                                    <span class="stat-title">Actual Wt.</span>
+                                    <span class="stat-val" id="dispActual">0 kg</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-title">Volumetric Wt.</span>
+                                    <span class="stat-val" id="dispVol">0 kg</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-title">CBM</span>
+                                    <span class="stat-val" id="dispCbm">0.00</span>
+                                </div>
+                            </div>
+
+                            <span class="result-label">Total Freight Charge</span>
+                            <span class="result-value" id="resultPrice">Php 0.00</span>
+                            <span class="formula-text" id="formulaDesc">Enter details to calculate</span>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
+
+        <div id="viewer-view" class="view-section">
+            <div class="viewer-container">
+                <div class="viewer-header">
+                    <div>
+                        <h1 style="margin:0; font-size:1.4rem;">Table Viewer</h1>
+                        <div style="color:var(--text-muted); font-size:0.9rem;" id="viewClientName">Client Name</div>
+                    </div>
+                    <button class="btn-back" onclick="switchView('editor')">← Back to Editor</button>
+                </div>
+                <div id="viewer-content" class="viewer-content">
+                    </div>
+            </div>
+        </div>
+
     </main>
 </div>
 
