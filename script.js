@@ -120,8 +120,6 @@ function loadFromLocal() {
             };
             GLOBAL_STORE.activeClientId = clientId;
             saveToLocal();
-            // Optional: Remove old key after successful migration
-            // localStorage.removeItem(OLD_STORAGE_KEY); 
             return true;
         } catch(e) { console.error("Migration failed", e); }
     }
@@ -179,10 +177,12 @@ function renderClientList() {
     Object.values(GLOBAL_STORE.clients).forEach(client => {
         const div = document.createElement('div');
         div.className = `client-item ${client.id === activeId ? 'active' : ''}`;
+        
+        // UPDATED: Removed the "X tables" indication
         div.innerHTML = `
             <span class="client-name">${client.name}</span>
-            <div class="client-meta">${Object.keys(client.data_store.fixed.profiles).length} tables</div>
         `;
+        
         div.onclick = () => switchClient(client.id);
         elClientList.appendChild(div);
     });
